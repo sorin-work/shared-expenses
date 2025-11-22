@@ -37,3 +37,27 @@ pub async fn verify_async(password: String, stored: String) -> Result<bool, AppE
         .await
         .map_err(|e| AppError::Internal(format!("verify task: {e}")))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hashes_verify_against_the_original_password() {
+        let stored = hash("correct horse battery staple").unwrap();
+        assert!(stored.starts_with("$argon2id$"));
+        assert!(verify("correct horse battery staple", &stored));
+        assert!(!verify("Correct horse battery staple", &stored));
+    }
+
+    #[test]
+    fn same_password_gets_a_different_salt() {
+        assert_ne!(hash("password1").unwrap(), hash("password1").unwrap());
+    }
+
+    #[test]
+    fn malformed_hashes_never_verify() {
+        assert!(!verify("anything", "not a hash"));
+        assert!(!verify("anything", ""));
+    }
+}

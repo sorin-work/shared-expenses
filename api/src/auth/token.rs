@@ -47,3 +47,40 @@ impl TokenKeys {
             .map_err(|_| AppError::Unauthorized)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SECRET: &str = "test-secret-test-secret-test-secret";
+
+    #[test]
+    fn issued_tokens_verify() {
+        let keys = TokenKeys::new(SECRET, 1);
+        let user = Uuid::new_v4();
+        let token = keys.issue(user).unwrap();
+        assert_eq!(keys.verify(&token).unwrap(), user);
+    }
+
+    #[test]
+    fn tokens_signed_with_another_secret_are_rejected() {
+        let token = TokenKeys::new("another-secret-another-secret-12345", 1)
+            .issue(Uuid::new_v4())
+            .unwrap();
+        assert!(TokenKeys::new(SECRET, 1).verify(&token).is_err());
+    }
+
+    #[test]
+    fn expired_tokens_are_rejected() {
+        let keys = TokenKeys::new(SECRET, -1);
+        let token = keys.issue(Uuid::new_v4()).unwrap();
+        assert!(keys.verify(&token).is_err());
+    }
+
+    #[test]
+    fn garbage_is_rejected() {
+        let keys = TokenKeys::new(SECRET, 1);
+        assert!(keys.verify("").is_err());
+        assert!(keys.verify("a.b.c").is_err());
+    }
+}
