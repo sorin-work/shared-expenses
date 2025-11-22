@@ -1,5 +1,6 @@
 //! shared-expenses API: groups, expenses, balances and settling up.
 
+pub mod auth;
 pub mod config;
 pub mod error;
 pub mod routes;
@@ -11,6 +12,8 @@ use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 
 pub use routes::router;
+
+pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
 pub async fn connect(database_url: &str) -> Result<PgPool, sqlx::Error> {
     PgPoolOptions::new()

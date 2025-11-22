@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use shared_expenses_api::config::Config;
 use shared_expenses_api::state::AppState;
-use shared_expenses_api::{connect, router};
+use shared_expenses_api::{MIGRATOR, connect, router};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
@@ -26,6 +26,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::from_env()?;
 
     let pool = connect(&config.database_url).await?;
+    MIGRATOR.run(&pool).await?;
+    tracing::info!("migrations applied");
 
     let state = AppState::new(pool);
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
