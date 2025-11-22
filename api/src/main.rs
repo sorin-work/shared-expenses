@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use shared_expenses_api::auth::token::TokenKeys;
 use shared_expenses_api::config::Config;
 use shared_expenses_api::state::AppState;
 use shared_expenses_api::{MIGRATOR, connect, router};
@@ -29,7 +30,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     MIGRATOR.run(&pool).await?;
     tracing::info!("migrations applied");
 
-    let state = AppState::new(pool);
+    let state = AppState::new(pool, TokenKeys::new(&config.jwt_secret, 24 * 7));
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
     let listener = TcpListener::bind(addr).await?;
     tracing::info!(%addr, "listening");

@@ -3,10 +3,11 @@ use axum::routing::get;
 
 use crate::state::AppState;
 
+pub mod auth;
 pub mod health;
 
 pub fn router(state: AppState) -> Router {
-    let api = Router::new();
+    let api = Router::new().nest("/auth", auth::router());
 
     Router::new()
         .route("/healthz", get(health::check))
