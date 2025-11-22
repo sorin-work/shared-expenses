@@ -35,3 +35,21 @@ fn bearer_token(header: &str) -> Option<&str> {
     let token = token.trim();
     (scheme.eq_ignore_ascii_case("bearer") && !token.is_empty()).then_some(token)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::bearer_token;
+
+    #[test]
+    fn parses_bearer_headers() {
+        assert_eq!(bearer_token("Bearer abc"), Some("abc"));
+        assert_eq!(bearer_token("bearer  abc "), Some("abc"));
+    }
+
+    #[test]
+    fn rejects_other_schemes_and_empty_tokens() {
+        assert_eq!(bearer_token("Basic abc"), None);
+        assert_eq!(bearer_token("Bearer "), None);
+        assert_eq!(bearer_token("Bearer"), None);
+    }
+}
