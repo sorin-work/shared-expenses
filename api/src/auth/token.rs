@@ -40,7 +40,8 @@ impl TokenKeys {
 
     /// Returns the user id from a valid, unexpired token.
     pub fn verify(&self, token: &str) -> Result<Uuid, AppError> {
-        let validation = Validation::new(Algorithm::HS256);
+        let mut validation = Validation::new(Algorithm::HS256);
+        validation.leeway = 30;
         decode::<Claims>(token, &self.decoding, &validation)
             .map(|data| data.claims.sub)
             .map_err(|_| AppError::Unauthorized)
