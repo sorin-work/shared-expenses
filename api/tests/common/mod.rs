@@ -9,14 +9,21 @@ use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt;
-use serde_json::Value;
+use serde_json::{Value, json};
 use shared_expenses_api::auth::token::TokenKeys;
-use shared_expenses_api::router;
 use shared_expenses_api::state::AppState;
+use shared_expenses_api::{MIGRATOR, router};
+use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use tower::ServiceExt;
+use uuid::Uuid;
 
 pub const SECRET: &str = "integration-test-secret-0123456789";
+
+pub struct TestApp {
+    pub router: Router,
+    pub pool: PgPool,
+}
 
 pub struct Response {
     pub status: StatusCode,
@@ -38,6 +45,23 @@ pub fn offline_app() -> Router {
         .connect_lazy("postgres://nobody:nothing@127.0.0.1:1/none")
         .expect("lazy pool");
     router(AppState::new(pool, TokenKeys::new(SECRET, 1)))
+}
+
+/// Connects to TEST_DATABASE_URL and applies the migrations, or returns
+/// `None` so the calling test can skip itself.
+pub async fn app() -> Option<TestApp> {
+    let Ok(url) = std::env::var("TEST_DATABASE_URL") else {
+        eprintln!("TEST_DATABASE_URL not set, skipping");
+        return None;
+    };
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&url)
+        .await
+        .expect("connect to TEST_DATABASE_URL");
+    MIGRATOR.run(&pool).await.expect("migrations");
+    let router = router(AppState::new(pool.clone(), TokenKeys::new(SECRET, 1)));
+    Some(TestApp { router, pool })
 }
 
 pub async fn send(
@@ -72,5 +96,53 @@ pub async fn send(
         status,
         headers,
         text: String::from_utf8(bytes.to_vec()).expect("utf-8 body"),
+    }
+}
+
+pub struct Account {
+    pub token: String,
+    pub user_id: String,
+    pub email: String,
+}
+
+impl TestApp {
+    pub async fn get(&self, uri: &str, token: &str) -> Response {
+        send(&self.router, "GET", uri, Some(token), None).await
+    }
+
+    pub async fn post(&self, uri: &str, token: &str, body: Value) -> Response {
+        send(&self.router, "POST", uri, Some(token), Some(body)).await
+    }
+
+    pub async fn put(&self, uri: &str, token: &str, body: Value) -> Response {
+        send(&self.router, "PUT", uri, Some(token), Some(body)).await
+    }
+
+    pub async fn patch(&self, uri: &str, token: &str, body: Value) -> Response {
+        send(&self.router, "PATCH", uri, Some(token), Some(body)).await
+    }
+
+    pub async fn delete(&self, uri: &str, token: &str) -> Response {
+        send(&self.router, "DELETE", uri, Some(token), None).await
+    }
+
+    /// Signs up a user with a unique email.
+    pub async fn signup(&self, name: &str) -> Account {
+        let email = format!("{}-{}@example.test", name.to_lowercase(), Uuid::new_v4());
+        let response = send(
+            &self.router,
+            "POST",
+            "/api/auth/signup",
+            None,
+            Some(json!({ "email": email, "name": name, "password": "password123" })),
+        )
+        .await;
+        assert_eq!(response.status, StatusCode::CREATED, "{}", response.text);
+        let body = response.json();
+        Account {
+            token: body["token"].as_str().unwrap().to_string(),
+            user_id: body["user"]["id"].as_str().unwrap().to_string(),
+            email,
+        }
     }
 }
