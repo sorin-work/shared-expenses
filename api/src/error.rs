@@ -96,3 +96,39 @@ pub fn is_unique_violation(err: &sqlx::Error, constraint: &str) -> bool {
         _ => false,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use axum::body::to_bytes;
+
+    use super::*;
+
+    async fn body(err: AppError) -> (StatusCode, serde_json::Value) {
+        let response = err.into_response();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        (status, serde_json::from_slice(&bytes).unwrap())
+    }
+
+    #[tokio::test]
+    async fn validation_errors_list_the_fields() {
+        let (status, json) = body(AppError::field("email", "is invalid")).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(json["error"]["code"], "validation_failed");
+        assert_eq!(json["error"]["fields"]["email"], "is invalid");
+    }
+
+    #[tokio::test]
+    async fn not_found_names_the_resource() {
+        let (status, json) = body(AppError::NotFound("group")).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(json["error"]["message"], "group not found");
+    }
+
+    #[tokio::test]
+    async fn internal_errors_do_not_leak_details() {
+        let (status, json) = body(AppError::Internal("disk on fire".into())).await;
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(json["error"]["message"], "internal error");
+    }
+}
