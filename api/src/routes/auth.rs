@@ -19,7 +19,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/signup", post(signup))
         .route("/login", post(login))
-        .route("/me", get(me))
+        .route("/me", get(me).patch(update_me))
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -52,6 +52,12 @@ pub struct LoginInput {
     pub email: String,
     #[serde(default)]
     pub password: String,
+}
+
+#[derive(Deserialize)]
+pub struct ProfileInput {
+    #[serde(default)]
+    pub name: String,
 }
 
 fn check_password(v: &mut Validator, field: &str, password: &str) {
@@ -159,4 +165,24 @@ pub async fn load_user(pool: &sqlx::PgPool, id: Uuid) -> Result<User, AppError> 
 
 async fn me(State(state): State<AppState>, auth: AuthUser) -> Result<Json<User>, AppError> {
     Ok(Json(load_user(&state.pool, auth.id).await?))
+}
+
+async fn update_me(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(input): Json<ProfileInput>,
+) -> Result<Json<User>, AppError> {
+    let mut v = Validator::new();
+    let name = v.text("name", &input.name, 60);
+    v.finish()?;
+
+    let user = sqlx::query_as::<_, User>(
+        "UPDATE users SET name = $2 WHERE id = $1 RETURNING id, email, name, created_at",
+    )
+    .bind(auth.id)
+    .bind(&name)
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AppError::Unauthorized)?;
+    Ok(Json(user))
 }
