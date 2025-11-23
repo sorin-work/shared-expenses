@@ -58,3 +58,62 @@ impl Config {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+
+    const SECRET: &str = "0123456789abcdef0123456789abcdef";
+
+    fn load(vars: &[(&str, &str)]) -> Result<Config, ConfigError> {
+        let map: HashMap<String, String> = vars
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        Config::from_lookup(|name| map.get(name).cloned())
+    }
+
+    #[test]
+    fn uses_defaults() {
+        let config = load(&[("DATABASE_URL", "postgres://x"), ("JWT_SECRET", SECRET)]).unwrap();
+        assert_eq!(config.port, 4407);
+        assert_eq!(config.token_ttl_hours, 168);
+    }
+
+    #[test]
+    fn requires_database_url_and_secret() {
+        assert_eq!(
+            load(&[("JWT_SECRET", SECRET)]).unwrap_err(),
+            ConfigError::Missing("DATABASE_URL")
+        );
+        assert_eq!(
+            load(&[("DATABASE_URL", "postgres://x"), ("JWT_SECRET", "  ")]).unwrap_err(),
+            ConfigError::Missing("JWT_SECRET")
+        );
+    }
+
+    #[test]
+    fn parses_overrides() {
+        let config = load(&[
+            ("DATABASE_URL", "postgres://x"),
+            ("JWT_SECRET", SECRET),
+            ("PORT", "8080"),
+            ("TOKEN_TTL_HOURS", "12"),
+        ])
+        .unwrap();
+        assert_eq!(config.port, 8080);
+        assert_eq!(config.token_ttl_hours, 12);
+    }
+
+    #[test]
+    fn rejects_bad_values() {
+        let base = [("DATABASE_URL", "postgres://x"), ("JWT_SECRET", SECRET)];
+        for (name, value) in [("PORT", "http"), ("TOKEN_TTL_HOURS", "0")] {
+            let mut vars = base.to_vec();
+            vars.push((name, value));
+            assert!(load(&vars).is_err(), "{name}={value} should fail");
+        }
+    }
+}
