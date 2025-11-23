@@ -30,7 +30,10 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     MIGRATOR.run(&pool).await?;
     tracing::info!("migrations applied");
 
-    let state = AppState::new(pool, TokenKeys::new(&config.jwt_secret, 24 * 7));
+    let state = AppState::new(
+        pool,
+        TokenKeys::new(&config.jwt_secret, config.token_ttl_hours),
+    );
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
     let listener = TcpListener::bind(addr).await?;
     tracing::info!(%addr, "listening");
