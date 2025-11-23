@@ -18,6 +18,10 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 
+[dev-dependencies]
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
+
 # Password hashing is far too slow without optimisations, which makes the
 # test suite crawl in debug builds.
 [profile.dev.package.argon2]
