@@ -1,5 +1,6 @@
 use axum::Router;
 use axum::routing::get;
+use tower_http::trace::TraceLayer;
 
 use crate::error::AppError;
 use crate::state::AppState;
@@ -14,6 +15,7 @@ pub fn router(state: AppState) -> Router {
         .route("/healthz", get(health::check))
         .nest("/api", api)
         .fallback(not_found)
+        .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
 
