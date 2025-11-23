@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use axum::Json;
+use axum::extract::rejection::{JsonRejection, PathRejection, QueryRejection};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde_json::json;
@@ -65,6 +66,24 @@ impl IntoResponse for AppError {
             body["fields"] = json!(fields);
         }
         (status, Json(json!({ "error": body }))).into_response()
+    }
+}
+
+impl From<JsonRejection> for AppError {
+    fn from(rejection: JsonRejection) -> Self {
+        Self::BadRequest(rejection.body_text())
+    }
+}
+
+impl From<PathRejection> for AppError {
+    fn from(_: PathRejection) -> Self {
+        Self::NotFound("resource")
+    }
+}
+
+impl From<QueryRejection> for AppError {
+    fn from(rejection: QueryRejection) -> Self {
+        Self::BadRequest(rejection.body_text())
     }
 }
 

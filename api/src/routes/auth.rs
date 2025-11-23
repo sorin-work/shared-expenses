@@ -8,9 +8,9 @@ use uuid::Uuid;
 
 use crate::auth::{AuthUser, password};
 use crate::error::{AppError, is_unique_violation};
+use crate::extract::Json;
 use crate::state::AppState;
 use crate::validate::Validator;
-use axum::Json;
 
 pub const MIN_PASSWORD_LEN: usize = 8;
 pub const MAX_PASSWORD_LEN: usize = 128;
