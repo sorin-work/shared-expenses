@@ -26,6 +26,17 @@ async fn protected_routes_require_a_token() {
 }
 
 #[tokio::test]
+async fn invalid_and_foreign_tokens_are_rejected() {
+    let foreign = TokenKeys::new("some-other-secret-some-other-secret", 1)
+        .issue(Uuid::new_v4())
+        .unwrap();
+    for token in ["garbage", foreign.as_str()] {
+        let response = send(&offline_app(), "GET", "/api/auth/me", Some(token), None).await;
+        assert_eq!(response.status, StatusCode::UNAUTHORIZED);
+    }
+}
+
+#[tokio::test]
 async fn signup_validates_every_field() {
     let response = send(
         &offline_app(),
