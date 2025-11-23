@@ -20,6 +20,7 @@ pub fn router() -> Router<AppState> {
         .route("/signup", post(signup))
         .route("/login", post(login))
         .route("/me", get(me).patch(update_me))
+        .route("/password", post(change_password))
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -58,6 +59,14 @@ pub struct LoginInput {
 pub struct ProfileInput {
     #[serde(default)]
     pub name: String,
+}
+
+#[derive(Deserialize)]
+pub struct PasswordInput {
+    #[serde(default)]
+    pub current_password: String,
+    #[serde(default)]
+    pub new_password: String,
 }
 
 fn check_password(v: &mut Validator, field: &str, password: &str) {
@@ -185,4 +194,36 @@ async fn update_me(
     .await?
     .ok_or(AppError::Unauthorized)?;
     Ok(Json(user))
+}
+
+async fn change_password(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(input): Json<PasswordInput>,
+) -> Result<StatusCode, AppError> {
+    let mut v = Validator::new();
+    v.check(
+        !input.current_password.is_empty(),
+        "current_password",
+        "is required",
+    );
+    check_password(&mut v, "new_password", &input.new_password);
+    v.finish()?;
+
+    let stored: String = sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1")
+        .bind(auth.id)
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
+    if !password::verify_async(input.current_password, stored).await? {
+        return Err(AppError::field("current_password", "is not correct"));
+    }
+
+    let hash = password::hash_async(input.new_password).await?;
+    sqlx::query("UPDATE users SET password_hash = $2 WHERE id = $1")
+        .bind(auth.id)
+        .bind(hash)
+        .execute(&state.pool)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
