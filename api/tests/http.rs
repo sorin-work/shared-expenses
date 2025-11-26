@@ -18,7 +18,11 @@ async fn unknown_routes_return_json_404() {
 
 #[tokio::test]
 async fn protected_routes_require_a_token() {
-    for (method, uri) in [("GET", "/api/auth/me")] {
+    for (method, uri) in [
+        ("GET", "/api/auth/me"),
+        ("GET", "/api/groups"),
+        ("POST", "/api/groups"),
+    ] {
         let response = send(&offline_app(), method, uri, None, None).await;
         assert_eq!(response.status, StatusCode::UNAUTHORIZED, "{method} {uri}");
         assert_eq!(response.json()["error"]["code"], "unauthorized");

@@ -6,10 +6,14 @@ use crate::error::AppError;
 use crate::state::AppState;
 
 pub mod auth;
+pub mod groups;
 pub mod health;
+pub mod members;
 
 pub fn router(state: AppState) -> Router {
-    let api = Router::new().nest("/auth", auth::router());
+    let api = Router::new()
+        .nest("/auth", auth::router())
+        .nest("/groups", groups::router());
 
     Router::new()
         .route("/healthz", get(health::check))

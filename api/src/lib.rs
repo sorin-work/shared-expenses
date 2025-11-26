@@ -1,7 +1,9 @@
 //! shared-expenses API: groups, expenses, balances and settling up.
 
+pub mod access;
 pub mod auth;
 pub mod config;
+pub mod domain;
 pub mod error;
 pub mod extract;
 pub mod routes;
