@@ -40,3 +40,30 @@ pub fn is_supported(code: &str) -> bool {
 pub fn all() -> impl Iterator<Item = &'static str> {
     CURRENCIES.iter().map(|(c, _)| *c)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn knows_common_currencies() {
+        assert_eq!(minor_units("EUR"), Some(2));
+        assert_eq!(minor_units("JPY"), Some(0));
+        assert!(is_supported("USD"));
+    }
+
+    #[test]
+    fn rejects_unknown_and_lowercase_codes() {
+        assert_eq!(minor_units("XXX"), None);
+        assert_eq!(minor_units("eur"), None);
+    }
+
+    #[test]
+    fn list_is_sorted_and_unique() {
+        let codes: Vec<_> = all().collect();
+        let mut sorted = codes.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(codes, sorted);
+    }
+}
