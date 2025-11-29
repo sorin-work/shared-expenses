@@ -20,7 +20,7 @@ use crate::validate::Validator;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
-        .route("/{group_id}", get(show).patch(update))
+        .route("/{group_id}", get(show).patch(update).delete(remove))
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -230,4 +230,20 @@ async fn update(
     tx.commit().await?;
 
     Ok(Json(load_detail(&state.pool, group_id, auth.id).await?))
+}
+
+async fn remove(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(group_id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    access::membership(&state.pool, group_id, auth.id)
+        .await?
+        .require_owner()?;
+    sqlx::query("DELETE FROM groups WHERE id = $1")
+        .bind(group_id)
+        .execute(&state.pool)
+        .await?;
+    tracing::info!(%group_id, "group deleted");
+    Ok(StatusCode::NO_CONTENT)
 }
