@@ -1,5 +1,8 @@
 mod common;
 
+use axum::http::StatusCode;
+use serde_json::json;
+
 #[tokio::test]
 async fn creating_a_group_makes_the_creator_its_owner() {
     let Some(app) = common::app().await else {
@@ -26,4 +29,23 @@ async fn creating_a_group_makes_the_creator_its_owner() {
         .find(|g| g["id"] == group.as_str())
         .unwrap();
     assert_eq!(entry["member_count"], 1);
+}
+
+#[tokio::test]
+async fn group_input_is_validated() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let response = app
+        .post(
+            "/api/groups",
+            &owner.token,
+            json!({ "name": "", "currency": "XYZ" }),
+        )
+        .await;
+    assert_eq!(response.status, StatusCode::UNPROCESSABLE_ENTITY);
+    let fields = &response.json()["error"]["fields"];
+    assert_eq!(fields["name"], "is required");
+    assert_eq!(fields["currency"], "is not a supported currency");
 }
