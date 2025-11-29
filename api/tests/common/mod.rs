@@ -145,4 +145,33 @@ impl TestApp {
             email,
         }
     }
+
+    /// Creates a group and returns (group id, the owner's member id).
+    pub async fn group(&self, owner: &Account, name: &str, currency: &str) -> (String, String) {
+        let response = self
+            .post(
+                "/api/groups",
+                &owner.token,
+                json!({ "name": name, "currency": currency }),
+            )
+            .await;
+        assert_eq!(response.status, StatusCode::CREATED, "{}", response.text);
+        let body = response.json();
+        (
+            body["id"].as_str().unwrap().to_string(),
+            body["my_member_id"].as_str().unwrap().to_string(),
+        )
+    }
+
+    pub async fn placeholder(&self, owner: &Account, group: &str, name: &str) -> String {
+        let response = self
+            .post(
+                &format!("/api/groups/{group}/members"),
+                &owner.token,
+                json!({ "display_name": name }),
+            )
+            .await;
+        assert_eq!(response.status, StatusCode::CREATED, "{}", response.text);
+        response.json()["id"].as_str().unwrap().to_string()
+    }
 }
