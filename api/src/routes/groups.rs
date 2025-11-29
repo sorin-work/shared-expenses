@@ -271,3 +271,31 @@ async fn regenerate_invite(
     .await?;
     Ok(Json(InviteCode { invite_code }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn invite_codes_use_the_safe_alphabet() {
+        for _ in 0..50 {
+            let code = new_invite_code();
+            assert_eq!(code.len(), INVITE_LENGTH);
+            assert!(code.bytes().all(|b| INVITE_ALPHABET.contains(&b)), "{code}");
+        }
+    }
+
+    #[test]
+    fn invite_codes_differ() {
+        assert_ne!(new_invite_code(), new_invite_code());
+    }
+
+    #[test]
+    fn currency_is_normalised_and_checked() {
+        let mut v = Validator::new();
+        assert_eq!(validate_currency(&mut v, " eur "), "EUR");
+        assert!(!v.has_errors());
+        validate_currency(&mut v, "ABC");
+        assert!(v.has_errors());
+    }
+}
