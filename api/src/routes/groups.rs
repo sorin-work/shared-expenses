@@ -1,7 +1,7 @@
 use axum::Router;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::get;
+use axum::routing::{get, post};
 use chrono::{DateTime, Utc};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -21,6 +21,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
         .route("/{group_id}", get(show).patch(update).delete(remove))
+        .route("/{group_id}/invite", post(regenerate_invite))
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -246,4 +247,27 @@ async fn remove(
         .await?;
     tracing::info!(%group_id, "group deleted");
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Serialize)]
+struct InviteCode {
+    invite_code: String,
+}
+
+async fn regenerate_invite(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(group_id): Path<Uuid>,
+) -> Result<Json<InviteCode>, AppError> {
+    access::membership(&state.pool, group_id, auth.id)
+        .await?
+        .require_owner()?;
+    let invite_code: String = sqlx::query_scalar(
+        "UPDATE groups SET invite_code = $2 WHERE id = $1 RETURNING invite_code",
+    )
+    .bind(group_id)
+    .bind(new_invite_code())
+    .fetch_one(&state.pool)
+    .await?;
+    Ok(Json(InviteCode { invite_code }))
 }
