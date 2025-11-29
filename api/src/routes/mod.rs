@@ -13,7 +13,8 @@ pub mod members;
 pub fn router(state: AppState) -> Router {
     let api = Router::new()
         .nest("/auth", auth::router())
-        .nest("/groups", groups::router());
+        .nest("/groups", groups::router())
+        .nest("/groups/{group_id}/members", members::router());
 
     Router::new()
         .route("/healthz", get(health::check))

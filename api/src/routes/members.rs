@@ -1,9 +1,22 @@
+use axum::Router;
+use axum::extract::State;
+use axum::http::StatusCode;
+use axum::routing::post;
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
+use crate::access;
+use crate::auth::AuthUser;
 use crate::error::AppError;
+use crate::extract::{Json, Path};
+use crate::state::AppState;
+use crate::validate::Validator;
+
+pub fn router() -> Router<AppState> {
+    Router::new().route("/", post(add_placeholder))
+}
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct MemberView {
@@ -13,15 +26,17 @@ pub struct MemberView {
     /// False for placeholder people without an account.
     pub has_account: bool,
     pub joined_at: DateTime<Utc>,
+    pub left_at: Option<DateTime<Utc>>,
 }
 
-/// All members of a group in joining order.
+/// All members including the ones who left, in joining order. This order is
+/// also used to hand out leftover cents when splitting.
 pub async fn list_members(
     db: impl PgExecutor<'_>,
     group_id: Uuid,
 ) -> Result<Vec<MemberView>, AppError> {
     Ok(sqlx::query_as::<_, MemberView>(
-        "SELECT id, display_name, role, user_id IS NOT NULL AS has_account, joined_at
+        "SELECT id, display_name, role, user_id IS NOT NULL AS has_account, joined_at, left_at
            FROM members WHERE group_id = $1
           ORDER BY joined_at, id",
     )
@@ -52,4 +67,63 @@ pub async fn insert_member(
     .execute(db)
     .await?;
     Ok(id)
+}
+
+/// Fails if another active member already uses this name.
+pub async fn ensure_name_available(
+    db: impl PgExecutor<'_>,
+    group_id: Uuid,
+    name: &str,
+    except: Option<Uuid>,
+) -> Result<(), AppError> {
+    let taken: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM members
+                         WHERE group_id = $1 AND left_at IS NULL
+                           AND display_name = $2
+                           AND id IS DISTINCT FROM $3)",
+    )
+    .bind(group_id)
+    .bind(name)
+    .bind(except)
+    .fetch_one(db)
+    .await?;
+    if taken {
+        Err(AppError::field(
+            "display_name",
+            "someone in the group already has this name",
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+#[derive(Deserialize)]
+pub struct MemberInput {
+    #[serde(default)]
+    pub display_name: String,
+}
+
+async fn add_placeholder(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(group_id): Path<Uuid>,
+    Json(input): Json<MemberInput>,
+) -> Result<(StatusCode, Json<MemberView>), AppError> {
+    access::membership(&state.pool, group_id, auth.id).await?;
+    let mut v = Validator::new();
+    let name = v.text("display_name", &input.display_name, 60);
+    v.finish()?;
+
+    let mut tx = state.pool.begin().await?;
+    ensure_name_available(&mut *tx, group_id, &name, None).await?;
+    let now = Utc::now();
+    let id = insert_member(&mut *tx, group_id, None, &name, "member", now).await?;
+    tx.commit().await?;
+
+    let member = list_members(&state.pool, group_id)
+        .await?
+        .into_iter()
+        .find(|m| m.id == id)
+        .ok_or(AppError::NotFound("member"))?;
+    Ok((StatusCode::CREATED, Json(member)))
 }
