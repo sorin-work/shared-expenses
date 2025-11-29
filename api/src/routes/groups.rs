@@ -20,7 +20,7 @@ use crate::validate::Validator;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
-        .route("/{group_id}", get(show))
+        .route("/{group_id}", get(show).patch(update))
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -57,6 +57,11 @@ pub struct CreateGroup {
     pub name: String,
     #[serde(default)]
     pub currency: String,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateGroup {
+    pub name: Option<String>,
 }
 
 const INVITE_ALPHABET: &[u8] = b"abcdefghjkmnpqrstuvwxyz23456789";
@@ -191,5 +196,38 @@ async fn show(
     auth: AuthUser,
     Path(group_id): Path<Uuid>,
 ) -> Result<Json<GroupDetail>, AppError> {
+    Ok(Json(load_detail(&state.pool, group_id, auth.id).await?))
+}
+
+async fn update(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(group_id): Path<Uuid>,
+    Json(input): Json<UpdateGroup>,
+) -> Result<Json<GroupDetail>, AppError> {
+    let membership = access::membership(&state.pool, group_id, auth.id).await?;
+    membership.require_owner()?;
+
+    let mut v = Validator::new();
+    let name = input.name.as_deref().map(|n| v.text("name", n, 80));
+    v.finish()?;
+
+    let mut tx = state.pool.begin().await?;
+    let current = sqlx::query_as::<_, GroupRow>(
+        "SELECT id, name, currency, invite_code, created_at FROM groups WHERE id = $1 FOR UPDATE",
+    )
+    .bind(group_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if let Some(name) = name.filter(|n| *n != current.name) {
+        sqlx::query("UPDATE groups SET name = $2 WHERE id = $1")
+            .bind(group_id)
+            .bind(&name)
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await?;
+
     Ok(Json(load_detail(&state.pool, group_id, auth.id).await?))
 }
