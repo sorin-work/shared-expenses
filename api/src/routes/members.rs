@@ -1,10 +1,10 @@
 use axum::Router;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::post;
+use axum::routing::{patch, post};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::PgExecutor;
+use sqlx::{PgExecutor, PgPool};
 use uuid::Uuid;
 
 use crate::access;
@@ -15,7 +15,9 @@ use crate::state::AppState;
 use crate::validate::Validator;
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/", post(add_placeholder))
+    Router::new()
+        .route("/", post(add_placeholder))
+        .route("/{member_id}", patch(rename))
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -97,6 +99,29 @@ pub async fn ensure_name_available(
     }
 }
 
+async fn find_member(
+    pool: &PgPool,
+    group_id: Uuid,
+    member_id: Uuid,
+) -> Result<MemberRow, AppError> {
+    sqlx::query_as::<_, MemberRow>(
+        "SELECT id, user_id, display_name FROM members
+          WHERE id = $1 AND group_id = $2 AND left_at IS NULL",
+    )
+    .bind(member_id)
+    .bind(group_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or(AppError::NotFound("member"))
+}
+
+#[derive(sqlx::FromRow)]
+struct MemberRow {
+    id: Uuid,
+    user_id: Option<Uuid>,
+    display_name: String,
+}
+
 #[derive(Deserialize)]
 pub struct MemberInput {
     #[serde(default)]
@@ -126,4 +151,42 @@ async fn add_placeholder(
         .find(|m| m.id == id)
         .ok_or(AppError::NotFound("member"))?;
     Ok((StatusCode::CREATED, Json(member)))
+}
+
+async fn rename(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((group_id, member_id)): Path<(Uuid, Uuid)>,
+    Json(input): Json<MemberInput>,
+) -> Result<Json<MemberView>, AppError> {
+    let me = access::membership(&state.pool, group_id, auth.id).await?;
+    let target = find_member(&state.pool, group_id, member_id).await?;
+    // Placeholders can be renamed by anyone in the group, people with an
+    // account only by themselves or the owner.
+    let allowed = me.is_owner() || target.user_id.is_none() || target.id == me.member_id;
+    if !allowed {
+        return Err(AppError::Forbidden("you can't rename this member"));
+    }
+
+    let mut v = Validator::new();
+    let name = v.text("display_name", &input.display_name, 60);
+    v.finish()?;
+
+    if name != target.display_name {
+        let mut tx = state.pool.begin().await?;
+        ensure_name_available(&mut *tx, group_id, &name, Some(target.id)).await?;
+        sqlx::query("UPDATE members SET display_name = $2 WHERE id = $1")
+            .bind(target.id)
+            .bind(&name)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+    }
+
+    let member = list_members(&state.pool, group_id)
+        .await?
+        .into_iter()
+        .find(|m| m.id == target.id)
+        .ok_or(AppError::NotFound("member"))?;
+    Ok(Json(member))
 }
