@@ -194,3 +194,22 @@ async fn join(
         member_id,
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::pick_free_name;
+
+    #[test]
+    fn keeps_the_name_when_it_is_free() {
+        assert_eq!(pick_free_name("Sam", &["alex".into()]), "Sam");
+    }
+
+    #[test]
+    fn numbers_clashing_names() {
+        assert_eq!(pick_free_name("Sam", &["sam".into()]), "Sam 2");
+        assert_eq!(
+            pick_free_name("Sam", &["sam".into(), "sam 2".into(), "sam 3".into()]),
+            "Sam 4"
+        );
+    }
+}
