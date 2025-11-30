@@ -22,6 +22,7 @@ async fn protected_routes_require_a_token() {
         ("GET", "/api/auth/me"),
         ("GET", "/api/groups"),
         ("POST", "/api/groups"),
+        ("GET", "/api/invites/abc"),
     ] {
         let response = send(&offline_app(), method, uri, None, None).await;
         assert_eq!(response.status, StatusCode::UNAUTHORIZED, "{method} {uri}");
