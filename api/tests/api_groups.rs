@@ -49,3 +49,144 @@ async fn group_input_is_validated() {
     assert_eq!(fields["name"], "is required");
     assert_eq!(fields["currency"], "is not a supported currency");
 }
+
+#[tokio::test]
+async fn only_the_owner_can_change_settings() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let friend = app.signup("Friend").await;
+    let (group, _) = app.group(&owner, "Trip", "EUR").await;
+    let code = app
+        .get(&format!("/api/groups/{group}"), &owner.token)
+        .await
+        .json()["invite_code"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    app.post(
+        &format!("/api/invites/{code}/join"),
+        &friend.token,
+        json!({}),
+    )
+    .await;
+
+    let forbidden = app
+        .patch(
+            &format!("/api/groups/{group}"),
+            &friend.token,
+            json!({ "name": "Mine" }),
+        )
+        .await;
+    assert_eq!(forbidden.status, StatusCode::FORBIDDEN);
+
+    let renamed = app
+        .patch(
+            &format!("/api/groups/{group}"),
+            &owner.token,
+            json!({ "name": "Rome trip" }),
+        )
+        .await;
+    assert_eq!(renamed.status, StatusCode::OK);
+    assert_eq!(renamed.json()["name"], "Rome trip");
+
+    let deleted = app
+        .delete(&format!("/api/groups/{group}"), &friend.token)
+        .await;
+    assert_eq!(deleted.status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn joining_with_the_invite_link() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let friend = app.signup("Owner").await;
+    let (group, _) = app.group(&owner, "Holiday", "EUR").await;
+    let code = app
+        .get(&format!("/api/groups/{group}"), &owner.token)
+        .await
+        .json()["invite_code"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let preview = app
+        .get(&format!("/api/invites/{code}"), &friend.token)
+        .await;
+    assert_eq!(preview.status, StatusCode::OK);
+    assert_eq!(preview.json()["name"], "Holiday");
+    assert_eq!(preview.json()["already_member"], false);
+
+    let joined = app
+        .post(
+            &format!("/api/invites/{code}/join"),
+            &friend.token,
+            json!({}),
+        )
+        .await;
+    assert_eq!(joined.status, StatusCode::OK, "{}", joined.text);
+
+    // Same name as the owner, so it gets a number.
+    let detail = app
+        .get(&format!("/api/groups/{group}"), &friend.token)
+        .await
+        .json();
+    let names: Vec<&str> = detail["members"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["display_name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, vec!["Owner", "Owner 2"]);
+
+    // Joining again changes nothing.
+    let again = app
+        .post(
+            &format!("/api/invites/{code}/join"),
+            &friend.token,
+            json!({}),
+        )
+        .await;
+    assert_eq!(again.json()["member_id"], joined.json()["member_id"]);
+
+    let unknown = app.get("/api/invites/doesnotexist", &friend.token).await;
+    assert_eq!(unknown.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn regenerating_the_invite_invalidates_the_old_link() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let friend = app.signup("Friend").await;
+    let (group, _) = app.group(&owner, "Flat", "EUR").await;
+    let old = app
+        .get(&format!("/api/groups/{group}"), &owner.token)
+        .await
+        .json()["invite_code"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let new = app
+        .post(
+            &format!("/api/groups/{group}/invite"),
+            &owner.token,
+            json!({}),
+        )
+        .await
+        .json();
+    assert_ne!(new["invite_code"], old.as_str());
+    let response = app
+        .post(
+            &format!("/api/invites/{old}/join"),
+            &friend.token,
+            json!({}),
+        )
+        .await;
+    assert_eq!(response.status, StatusCode::NOT_FOUND);
+}
