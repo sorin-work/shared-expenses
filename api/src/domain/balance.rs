@@ -98,3 +98,91 @@ pub fn compute(
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const A: Uuid = Uuid::from_u128(1);
+    const B: Uuid = Uuid::from_u128(2);
+    const C: Uuid = Uuid::from_u128(3);
+
+    fn expense(paid_by: Uuid, shares: &[(Uuid, i64)]) -> ExpenseEntry {
+        ExpenseEntry {
+            paid_by,
+            amount: shares.iter().map(|(_, a)| a).sum(),
+            shares: shares
+                .iter()
+                .map(|(member_id, amount)| Share {
+                    member_id: *member_id,
+                    amount: *amount,
+                })
+                .collect(),
+        }
+    }
+
+    fn nets(balances: &[MemberBalance]) -> Vec<i64> {
+        balances.iter().map(|b| b.net).collect()
+    }
+
+    #[test]
+    fn no_activity_means_everyone_is_settled() {
+        let balances = compute(&[A, B, C], &[], &[]);
+        assert_eq!(nets(&balances), vec![0, 0, 0]);
+    }
+
+    #[test]
+    fn payer_is_owed_the_other_shares() {
+        let balances = compute(
+            &[A, B, C],
+            &[expense(A, &[(A, 1000), (B, 1000), (C, 1000)])],
+            &[],
+        );
+        assert_eq!(nets(&balances), vec![2000, -1000, -1000]);
+        assert_eq!(balances[0].paid, 3000);
+        assert_eq!(balances[0].share, 1000);
+    }
+
+    #[test]
+    fn expenses_offset_each_other() {
+        let balances = compute(
+            &[A, B],
+            &[
+                expense(A, &[(A, 500), (B, 500)]),
+                expense(B, &[(A, 500), (B, 500)]),
+            ],
+            &[],
+        );
+        assert_eq!(nets(&balances), vec![0, 0]);
+    }
+
+    #[test]
+    fn settlements_move_balances_towards_zero() {
+        let balances = compute(
+            &[A, B],
+            &[expense(A, &[(A, 500), (B, 500)])],
+            &[SettlementEntry {
+                from: B,
+                to: A,
+                amount: 500,
+            }],
+        );
+        assert_eq!(nets(&balances), vec![0, 0]);
+        assert_eq!(balances[1].sent, 500);
+        assert_eq!(balances[0].received, 500);
+    }
+
+    #[test]
+    fn partial_settlement_leaves_the_rest() {
+        let balances = compute(
+            &[A, B],
+            &[expense(A, &[(B, 1000)])],
+            &[SettlementEntry {
+                from: B,
+                to: A,
+                amount: 400,
+            }],
+        );
+        assert_eq!(nets(&balances), vec![600, -600]);
+    }
+}
