@@ -3,3 +3,4 @@
 //! it is covered by plain unit tests.
 
 pub mod currency;
+pub mod split;
