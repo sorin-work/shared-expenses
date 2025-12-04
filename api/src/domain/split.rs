@@ -337,4 +337,59 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn rejects_too_many_participants() {
+        let many = people(&vec![1; MAX_PARTICIPANTS + 1]);
+        assert_eq!(
+            split(10_000, SplitMethod::Equal, &many).unwrap_err(),
+            SplitError::TooManyParticipants
+        );
+    }
+
+    #[test]
+    fn exact_split_overflow_is_an_error() {
+        let err = split(100, SplitMethod::Exact, &people(&[i64::MAX, i64::MAX])).unwrap_err();
+        assert_eq!(err, SplitError::Overflow);
+    }
+
+    #[test]
+    fn huge_amounts_do_not_overflow() {
+        let shares = split(i64::MAX, SplitMethod::Shares, &people(&[i64::MAX, 1])).unwrap();
+        assert_eq!(
+            shares.iter().map(|s| i128::from(s.amount)).sum::<i128>(),
+            i128::from(i64::MAX)
+        );
+    }
+
+    #[test]
+    fn every_split_adds_up_to_the_total() {
+        let weights = [1, 2, 3, 5, 7, 11];
+        for total in [1, 7, 99, 100, 101, 12_345, 999_999] {
+            for n in 1..=weights.len() {
+                let input = people(&weights[..n]);
+                for method in [SplitMethod::Equal, SplitMethod::Shares] {
+                    let sum: i64 = split(total, method, &input)
+                        .unwrap()
+                        .iter()
+                        .map(|s| s.amount)
+                        .sum();
+                    assert_eq!(sum, total, "{method} split of {total} between {n}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn method_round_trips_through_strings() {
+        for method in [
+            SplitMethod::Equal,
+            SplitMethod::Exact,
+            SplitMethod::Percent,
+            SplitMethod::Shares,
+        ] {
+            assert_eq!(method.as_str().parse::<SplitMethod>(), Ok(method));
+        }
+        assert!("weird".parse::<SplitMethod>().is_err());
+    }
 }
