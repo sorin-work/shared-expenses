@@ -185,9 +185,10 @@ fn allocate(total: i64, weights: &[i64]) -> Vec<i64> {
     let leftover =
         usize::try_from(total - assigned).expect("leftover is below the participant count");
 
-    // Hand out the leftover cents one at a time.
-    for amount in amounts.iter_mut().take(leftover) {
-        *amount += 1;
+    // Biggest remainder first; on a tie the earlier participant wins.
+    remainders.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+    for (_, index) in remainders.into_iter().take(leftover) {
+        amounts[index] += 1;
     }
 
     amounts
@@ -273,6 +274,20 @@ mod tests {
     }
 
     #[test]
+    fn percent_split_rounds_with_largest_remainder() {
+        // 33.33% / 33.33% / 33.34% of 10.00
+        let shares = split(1000, SplitMethod::Percent, &people(&[3333, 3333, 3334])).unwrap();
+        assert_eq!(amounts(&shares), vec![333, 333, 334]);
+    }
+
+    #[test]
+    fn percent_split_gives_the_cent_to_the_biggest_remainder_not_the_first() {
+        // 10% of 0.99 = 0.099, 90% = 0.891 -> remainders .9 and .1
+        let shares = split(99, SplitMethod::Percent, &people(&[1000, 9000])).unwrap();
+        assert_eq!(amounts(&shares), vec![10, 89]);
+    }
+
+    #[test]
     fn percent_split_must_total_one_hundred() {
         let err = split(1000, SplitMethod::Percent, &people(&[5000, 4000])).unwrap_err();
         assert_eq!(err, SplitError::PercentMismatch { actual: 9000 });
@@ -283,6 +298,16 @@ mod tests {
         // A couple (2 shares) and a single (1 share) splitting 90.00
         let shares = split(9000, SplitMethod::Shares, &people(&[2, 1])).unwrap();
         assert_eq!(amounts(&shares), vec![6000, 3000]);
+    }
+
+    #[test]
+    fn shares_split_distributes_remainders() {
+        let shares = split(100, SplitMethod::Shares, &people(&[1, 1, 1])).unwrap();
+        assert_eq!(amounts(&shares), vec![34, 33, 33]);
+
+        let shares = split(1000, SplitMethod::Shares, &people(&[3, 3, 1])).unwrap();
+        assert_eq!(amounts(&shares), vec![429, 428, 143]);
+        assert_eq!(shares.iter().map(|s| s.amount).sum::<i64>(), 1000);
     }
 
     #[test]
