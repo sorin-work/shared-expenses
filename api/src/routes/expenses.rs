@@ -25,7 +25,7 @@ pub const MAX_AMOUNT: i64 = 10_000_000_000;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
-        .route("/{expense_id}", get(show))
+        .route("/{expense_id}", get(show).put(update).delete(remove))
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -405,4 +405,73 @@ async fn show(
     access::membership(&state.pool, group_id, auth.id).await?;
     let mut conn = state.pool.acquire().await?;
     Ok(Json(load_expense(&mut conn, group_id, expense_id).await?))
+}
+
+async fn update(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((group_id, expense_id)): Path<(Uuid, Uuid)>,
+    Json(input): Json<ExpenseInput>,
+) -> Result<Json<ExpenseView>, AppError> {
+    access::membership(&state.pool, group_id, auth.id).await?;
+    let now = Utc::now();
+    let mut tx = state.pool.begin().await?;
+
+    // Lock the row so two edits at the same time get consecutive revisions.
+    sqlx::query("SELECT 1 FROM expenses WHERE id = $1 AND group_id = $2 FOR UPDATE")
+        .bind(expense_id)
+        .bind(group_id)
+        .execute(&mut *tx)
+        .await?;
+    let before = load_expense(&mut tx, group_id, expense_id).await?;
+
+    let mut involved: Vec<Uuid> = before.shares.iter().map(|s| s.member_id).collect();
+    involved.push(before.paid_by);
+    let prepared = prepare(&mut *tx, group_id, &input, &involved, now.date_naive()).await?;
+
+    sqlx::query(
+        "UPDATE expenses
+            SET description = $2, amount_cents = $3, paid_by = $4, split_method = $5,
+                category = $6, spent_on = $7, notes = $8, updated_at = $9
+          WHERE id = $1",
+    )
+    .bind(expense_id)
+    .bind(&prepared.description)
+    .bind(prepared.amount)
+    .bind(prepared.paid_by)
+    .bind(prepared.method.as_str())
+    .bind(&prepared.category)
+    .bind(prepared.spent_on)
+    .bind(&prepared.notes)
+    .bind(now)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("DELETE FROM expense_shares WHERE expense_id = $1")
+        .bind(expense_id)
+        .execute(&mut *tx)
+        .await?;
+    insert_shares(&mut tx, expense_id, &prepared).await?;
+
+    let after = load_expense(&mut tx, group_id, expense_id).await?;
+    tx.commit().await?;
+    Ok(Json(after))
+}
+
+async fn remove(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((group_id, expense_id)): Path<(Uuid, Uuid)>,
+) -> Result<StatusCode, AppError> {
+    access::membership(&state.pool, group_id, auth.id).await?;
+    let now = Utc::now();
+    let mut tx = state.pool.begin().await?;
+
+    load_expense(&mut tx, group_id, expense_id).await?;
+    sqlx::query("UPDATE expenses SET deleted_at = $2 WHERE id = $1")
+        .bind(expense_id)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
 }
