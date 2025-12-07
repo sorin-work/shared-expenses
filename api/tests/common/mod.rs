@@ -174,4 +174,35 @@ impl TestApp {
         assert_eq!(response.status, StatusCode::CREATED, "{}", response.text);
         response.json()["id"].as_str().unwrap().to_string()
     }
+
+    pub async fn equal_expense(
+        &self,
+        account: &Account,
+        group: &str,
+        description: &str,
+        amount_cents: i64,
+        paid_by: &str,
+        members: &[&str],
+    ) -> Value {
+        let response = self
+            .post(
+                &format!("/api/groups/{group}/expenses"),
+                &account.token,
+                json!({
+                    "description": description,
+                    "amount_cents": amount_cents,
+                    "paid_by": paid_by,
+                    "split_method": "equal",
+                    "spent_on": today(),
+                    "splits": members.iter().map(|m| json!({ "member_id": m })).collect::<Vec<_>>(),
+                }),
+            )
+            .await;
+        assert_eq!(response.status, StatusCode::CREATED, "{}", response.text);
+        response.json()
+    }
+}
+
+pub fn today() -> String {
+    chrono::Utc::now().date_naive().to_string()
 }
