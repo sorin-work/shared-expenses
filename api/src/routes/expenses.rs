@@ -479,3 +479,20 @@ async fn remove(
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_errors_point_at_the_right_field() {
+        assert_eq!(
+            split_error_field(&SplitError::NonPositiveTotal),
+            "amount_cents"
+        );
+        assert_eq!(
+            split_error_field(&SplitError::PercentMismatch { actual: 1 }),
+            "splits"
+        );
+    }
+}
