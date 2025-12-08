@@ -166,6 +166,8 @@ pub async fn prepare(
             .iter()
             .any(|m| m.id == *id && (m.left_at.is_none() || also_allowed.contains(id)))
     };
+    let position: HashMap<Uuid, usize> =
+        members.iter().enumerate().map(|(i, m)| (m.id, i)).collect();
 
     v.check(
         usable(&input.paid_by),
@@ -183,7 +185,8 @@ pub async fn prepare(
     v.finish()?;
     let method = method.expect("checked above");
 
-    let participants: Vec<Participant> = input
+    // Split in member order so leftover cents always go to the same people.
+    let mut participants: Vec<Participant> = input
         .splits
         .iter()
         .map(|s| Participant {
@@ -191,6 +194,7 @@ pub async fn prepare(
             value: s.value,
         })
         .collect();
+    participants.sort_by_key(|p| position[&p.member_id]);
 
     let shares = split::split(input.amount_cents, method, &participants)
         .map_err(|err| AppError::field(split_error_field(&err), err.to_string()))?;

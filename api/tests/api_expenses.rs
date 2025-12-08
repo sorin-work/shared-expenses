@@ -13,6 +13,25 @@ fn amounts(expense: &Value) -> Vec<i64> {
 }
 
 #[tokio::test]
+async fn equal_split_hands_leftover_cents_out_in_member_order() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let (group, me) = app.group(&owner, "Flat", "EUR").await;
+    let b = app.placeholder(&owner, &group, "B").await;
+    let c = app.placeholder(&owner, &group, "C").await;
+
+    // Listed in reverse, but the first member still gets the extra cent.
+    let expense = app
+        .equal_expense(&owner, &group, "Pizza", 1_000, &me, &[&c, &b, &me])
+        .await;
+    assert_eq!(amounts(&expense), vec![334, 333, 333]);
+    assert_eq!(expense["shares"][0]["member_id"], me.as_str());
+    assert_eq!(expense["category"], "general");
+}
+
+#[tokio::test]
 async fn other_split_methods() {
     let Some(app) = common::app().await else {
         return;
