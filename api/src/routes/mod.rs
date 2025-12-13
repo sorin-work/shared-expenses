@@ -11,6 +11,7 @@ pub mod groups;
 pub mod health;
 pub mod invites;
 pub mod members;
+pub mod settlements;
 
 pub fn router(state: AppState) -> Router {
     let api = Router::new()
@@ -18,6 +19,7 @@ pub fn router(state: AppState) -> Router {
         .nest("/groups", groups::router())
         .nest("/groups/{group_id}/members", members::router())
         .nest("/groups/{group_id}/expenses", expenses::router())
+        .nest("/groups/{group_id}/settlements", settlements::router())
         .nest("/invites", invites::router());
 
     Router::new()
