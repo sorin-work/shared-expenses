@@ -3,7 +3,7 @@
 use axum::Router;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::get;
+use axum::routing::{delete, get};
 use chrono::{DateTime, Days, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgConnection;
@@ -19,7 +19,9 @@ use crate::state::AppState;
 use crate::validate::Validator;
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/", get(list).post(create))
+    Router::new()
+        .route("/", get(list).post(create))
+        .route("/{settlement_id}", delete(remove))
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -149,4 +151,27 @@ async fn create(
     let settlement = insert_settlement(&mut tx, group_id, auth.id, &input, Utc::now()).await?;
     tx.commit().await?;
     Ok((StatusCode::CREATED, Json(settlement)))
+}
+
+async fn remove(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((group_id, settlement_id)): Path<(Uuid, Uuid)>,
+) -> Result<StatusCode, AppError> {
+    access::membership(&state.pool, group_id, auth.id).await?;
+    let mut tx = state.pool.begin().await?;
+
+    let deleted = sqlx::query(
+        "UPDATE settlements SET deleted_at = now()
+          WHERE id = $1 AND group_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(settlement_id)
+    .bind(group_id)
+    .execute(&mut *tx)
+    .await?;
+    if deleted.rows_affected() == 0 {
+        return Err(AppError::NotFound("settlement"));
+    }
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
 }
