@@ -22,6 +22,10 @@ async fn protected_routes_require_a_token() {
         ("GET", "/api/auth/me"),
         ("GET", "/api/groups"),
         ("POST", "/api/groups"),
+        (
+            "GET",
+            "/api/groups/7b0c2b4e-2f61-4a51-9b5e-8f1f7d7d4b1a/balances",
+        ),
         ("GET", "/api/invites/abc"),
     ] {
         let response = send(&offline_app(), method, uri, None, None).await;

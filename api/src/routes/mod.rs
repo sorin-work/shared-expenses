@@ -6,6 +6,7 @@ use crate::error::AppError;
 use crate::state::AppState;
 
 pub mod auth;
+pub mod balances;
 pub mod expenses;
 pub mod groups;
 pub mod health;
@@ -20,6 +21,7 @@ pub fn router(state: AppState) -> Router {
         .nest("/groups/{group_id}/members", members::router())
         .nest("/groups/{group_id}/expenses", expenses::router())
         .nest("/groups/{group_id}/settlements", settlements::router())
+        .route("/groups/{group_id}/balances", get(balances::show))
         .nest("/invites", invites::router());
 
     Router::new()
