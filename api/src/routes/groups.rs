@@ -31,6 +31,8 @@ pub struct GroupSummary {
     pub currency: String,
     pub member_count: i64,
     pub my_member_id: Uuid,
+    /// The signed-in user's net balance in this group.
+    pub my_balance: i64,
     pub created_at: DateTime<Utc>,
 }
 
@@ -140,7 +142,17 @@ async fn list(
         "SELECT g.id, g.name, g.currency, g.created_at,
                 m.id AS my_member_id,
                 (SELECT count(*) FROM members mm
-                  WHERE mm.group_id = g.id AND mm.left_at IS NULL) AS member_count
+                  WHERE mm.group_id = g.id AND mm.left_at IS NULL) AS member_count,
+                (  COALESCE((SELECT sum(e.amount_cents) FROM expenses e
+                              WHERE e.paid_by = m.id AND e.deleted_at IS NULL), 0)
+                 - COALESCE((SELECT sum(s.amount_cents) FROM expense_shares s
+                               JOIN expenses e ON e.id = s.expense_id
+                              WHERE s.member_id = m.id AND e.deleted_at IS NULL), 0)
+                 + COALESCE((SELECT sum(t.amount_cents) FROM settlements t
+                              WHERE t.from_member = m.id AND t.deleted_at IS NULL), 0)
+                 - COALESCE((SELECT sum(t.amount_cents) FROM settlements t
+                              WHERE t.to_member = m.id AND t.deleted_at IS NULL), 0)
+                ) AS my_balance
            FROM groups g
            JOIN members m ON m.group_id = g.id AND m.user_id = $1 AND m.left_at IS NULL
           ORDER BY g.created_at",
