@@ -152,7 +152,7 @@ async fn list(
                               WHERE t.from_member = m.id AND t.deleted_at IS NULL), 0)
                  - COALESCE((SELECT sum(t.amount_cents) FROM settlements t
                               WHERE t.to_member = m.id AND t.deleted_at IS NULL), 0)
-                ) AS my_balance
+                )::bigint AS my_balance
            FROM groups g
            JOIN members m ON m.group_id = g.id AND m.user_id = $1 AND m.left_at IS NULL
           ORDER BY g.created_at",

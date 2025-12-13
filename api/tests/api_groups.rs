@@ -29,6 +29,7 @@ async fn creating_a_group_makes_the_creator_its_owner() {
         .find(|g| g["id"] == group.as_str())
         .unwrap();
     assert_eq!(entry["member_count"], 1);
+    assert_eq!(entry["my_balance"], 0);
 }
 
 #[tokio::test]
