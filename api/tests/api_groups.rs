@@ -220,3 +220,48 @@ async fn regenerating_the_invite_invalidates_the_old_link() {
         .await;
     assert_eq!(response.status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn claiming_a_placeholder_keeps_its_expenses() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let friend = app.signup("Chris").await;
+    let (group, me) = app.group(&owner, "Ski week", "CHF").await;
+    let placeholder = app.placeholder(&owner, &group, "Chris").await;
+    app.equal_expense(
+        &owner,
+        &group,
+        "Lift passes",
+        30_000,
+        &me,
+        &[&me, &placeholder],
+    )
+    .await;
+
+    let code = app
+        .get(&format!("/api/groups/{group}"), &owner.token)
+        .await
+        .json()["invite_code"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let preview = app
+        .get(&format!("/api/invites/{code}"), &friend.token)
+        .await
+        .json();
+    assert_eq!(preview["placeholders"][0]["id"], placeholder.as_str());
+
+    let joined = app
+        .post(
+            &format!("/api/invites/{code}/join"),
+            &friend.token,
+            json!({ "claim_member_id": placeholder }),
+        )
+        .await;
+    assert_eq!(joined.json()["member_id"], placeholder.as_str());
+
+    let groups = app.get("/api/groups", &friend.token).await.json();
+    assert_eq!(groups[0]["my_balance"], -15_000);
+}
