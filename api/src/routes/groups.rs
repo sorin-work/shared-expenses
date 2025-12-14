@@ -65,6 +65,7 @@ pub struct CreateGroup {
 #[derive(Deserialize)]
 pub struct UpdateGroup {
     pub name: Option<String>,
+    pub currency: Option<String>,
 }
 
 const INVITE_ALPHABET: &[u8] = b"abcdefghjkmnpqrstuvwxyz23456789";
@@ -223,6 +224,10 @@ async fn update(
 
     let mut v = Validator::new();
     let name = input.name.as_deref().map(|n| v.text("name", n, 80));
+    let currency = input
+        .currency
+        .as_deref()
+        .map(|c| validate_currency(&mut v, c));
     v.finish()?;
 
     let mut tx = state.pool.begin().await?;
@@ -232,6 +237,26 @@ async fn update(
     .bind(group_id)
     .fetch_one(&mut *tx)
     .await?;
+
+    if let Some(currency) = currency.filter(|c| *c != current.currency) {
+        let in_use: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM expenses WHERE group_id = $1 AND deleted_at IS NULL)
+                 OR EXISTS (SELECT 1 FROM settlements WHERE group_id = $1 AND deleted_at IS NULL)",
+        )
+        .bind(group_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if in_use {
+            return Err(AppError::Conflict(
+                "the currency can't be changed once the group has expenses".into(),
+            ));
+        }
+        sqlx::query("UPDATE groups SET currency = $2 WHERE id = $1")
+            .bind(group_id)
+            .bind(&currency)
+            .execute(&mut *tx)
+            .await?;
+    }
 
     if let Some(name) = name.filter(|n| *n != current.name) {
         sqlx::query("UPDATE groups SET name = $2 WHERE id = $1")

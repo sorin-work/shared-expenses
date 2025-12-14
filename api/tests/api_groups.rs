@@ -99,6 +99,35 @@ async fn only_the_owner_can_change_settings() {
 }
 
 #[tokio::test]
+async fn currency_is_locked_once_there_are_expenses() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let (group, me) = app.group(&owner, "Home", "EUR").await;
+
+    let changed = app
+        .patch(
+            &format!("/api/groups/{group}"),
+            &owner.token,
+            json!({ "currency": "GBP" }),
+        )
+        .await;
+    assert_eq!(changed.json()["currency"], "GBP");
+
+    app.equal_expense(&owner, &group, "Milk", 120, &me, &[&me])
+        .await;
+    let blocked = app
+        .patch(
+            &format!("/api/groups/{group}"),
+            &owner.token,
+            json!({ "currency": "EUR" }),
+        )
+        .await;
+    assert_eq!(blocked.status, StatusCode::CONFLICT);
+}
+
+#[tokio::test]
 async fn joining_with_the_invite_link() {
     let Some(app) = common::app().await else {
         return;
