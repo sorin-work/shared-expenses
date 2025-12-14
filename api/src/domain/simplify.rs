@@ -59,3 +59,84 @@ fn settle_greedily(open: &[(Uuid, i64)]) -> Vec<Transfer> {
     }
     transfers
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+
+    fn id(n: u128) -> Uuid {
+        Uuid::from_u128(n)
+    }
+
+    fn balances(values: &[i64]) -> Vec<(Uuid, i64)> {
+        values
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (id(i as u128 + 1), *b))
+            .collect()
+    }
+
+    /// Applies the transfers and checks that everyone ends up at zero.
+    fn assert_settles(input: &[(Uuid, i64)], transfers: &[Transfer]) {
+        let mut left: HashMap<Uuid, i64> = input.iter().copied().collect();
+        for t in transfers {
+            assert!(t.amount > 0, "transfer of {}", t.amount);
+            assert_ne!(t.from, t.to);
+            *left.get_mut(&t.from).unwrap() += t.amount;
+            *left.get_mut(&t.to).unwrap() -= t.amount;
+        }
+        assert!(left.values().all(|b| *b == 0), "left over: {left:?}");
+    }
+
+    #[test]
+    fn nothing_to_do_when_everyone_is_settled() {
+        assert!(simplify(&balances(&[0, 0, 0])).is_empty());
+        assert!(simplify(&[]).is_empty());
+    }
+
+    #[test]
+    fn single_debt_is_one_transfer() {
+        let input = balances(&[500, -500]);
+        assert_eq!(
+            simplify(&input),
+            vec![Transfer {
+                from: id(2),
+                to: id(1),
+                amount: 500
+            }]
+        );
+    }
+
+    #[test]
+    fn one_creditor_many_debtors() {
+        let input = balances(&[2000, -1000, -1000]);
+        let transfers = simplify(&input);
+        assert_eq!(transfers.len(), 2);
+        assert_settles(&input, &transfers);
+    }
+
+    #[test]
+    fn chains_collapse_into_direct_payments() {
+        // A owes B 10, B owes C 10 -> A pays C directly.
+        let input = balances(&[-1000, 0, 1000]);
+        assert_eq!(
+            simplify(&input),
+            vec![Transfer {
+                from: id(1),
+                to: id(3),
+                amount: 1000
+            }]
+        );
+    }
+
+    #[test]
+    fn uses_n_minus_groups_transfers() {
+        // Two independent pairs.
+        let input = balances(&[700, -300, -700, 300]);
+        let transfers = simplify(&input);
+        assert_eq!(transfers.len(), 2);
+        assert_settles(&input, &transfers);
+    }
+}
