@@ -9,6 +9,7 @@ use super::members::{self, MemberView};
 use crate::access;
 use crate::auth::AuthUser;
 use crate::domain::balance::{self, ExpenseEntry, MemberBalance, SettlementEntry};
+use crate::domain::simplify::{self, Transfer};
 use crate::domain::split::Share;
 use crate::error::AppError;
 use crate::extract::{Json, Path};
@@ -24,9 +25,28 @@ pub struct BalanceRow {
 }
 
 #[derive(Serialize)]
+pub struct Suggestion {
+    pub from_member: Uuid,
+    pub to_member: Uuid,
+    pub amount_cents: i64,
+}
+
+impl From<Transfer> for Suggestion {
+    fn from(t: Transfer) -> Self {
+        Self {
+            from_member: t.from,
+            to_member: t.to,
+            amount_cents: t.amount,
+        }
+    }
+}
+
+#[derive(Serialize)]
 pub struct Balances {
     pub currency: String,
     pub balances: Vec<BalanceRow>,
+    /// The fewest transfers that settle everyone up.
+    pub suggestions: Vec<Suggestion>,
 }
 
 /// Loads every live expense and settlement of a group and computes the
@@ -92,6 +112,12 @@ pub async fn show(
         .await?;
     let (members, balances) = compute_for_group(&state.pool, group_id).await?;
 
+    let nets: Vec<(Uuid, i64)> = balances.iter().map(|b| (b.member_id, b.net)).collect();
+    let suggestions = simplify::simplify(&nets)
+        .into_iter()
+        .map(Suggestion::from)
+        .collect();
+
     let balances = balances
         .into_iter()
         .filter_map(|balance| {
@@ -109,5 +135,9 @@ pub async fn show(
         })
         .collect();
 
-    Ok(Json(Balances { currency, balances }))
+    Ok(Json(Balances {
+        currency,
+        balances,
+        suggestions,
+    }))
 }
