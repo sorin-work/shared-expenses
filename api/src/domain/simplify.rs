@@ -38,14 +38,12 @@ fn settle_greedily(open: &[(Uuid, i64)]) -> Vec<Transfer> {
         .map(|(id, b)| (*id, -b))
         .collect();
 
+    fn biggest(entries: &[(Uuid, i64)]) -> Option<usize> {
+        (0..entries.len()).max_by_key(|&i| entries[i].1)
+    }
+
     let mut transfers = Vec::new();
-    loop {
-        let Some(c) = (0..creditors.len()).max_by_key(|&i| creditors[i].1) else {
-            break;
-        };
-        let Some(d) = (0..debtors.len()).max_by_key(|&i| debtors[i].1) else {
-            break;
-        };
+    while let (Some(c), Some(d)) = (biggest(&creditors), biggest(&debtors)) {
         let amount = creditors[c].1.min(debtors[d].1);
         transfers.push(Transfer {
             from: debtors[d].0,
