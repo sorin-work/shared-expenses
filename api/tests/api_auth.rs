@@ -116,3 +116,13 @@ async fn profile_and_password_can_be_changed() {
     .await;
     assert_eq!(login.status, StatusCode::OK);
 }
+
+#[tokio::test]
+async fn health_is_ok_with_a_database() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let response = send(&app.router, "GET", "/healthz", None, None).await;
+    assert_eq!(response.status, StatusCode::OK);
+    assert_eq!(response.json()["status"], "ok");
+}

@@ -105,3 +105,10 @@ async fn invalid_ids_in_the_path_are_not_found() {
     .await;
     assert_eq!(response.status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn health_reports_an_unreachable_database() {
+    let response = send(&offline_app(), "GET", "/healthz", None, None).await;
+    assert_eq!(response.status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(response.json()["status"], "unavailable");
+}
