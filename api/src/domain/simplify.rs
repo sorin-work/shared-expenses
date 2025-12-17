@@ -38,8 +38,10 @@ fn settle_greedily(open: &[(Uuid, i64)]) -> Vec<Transfer> {
         .map(|(id, b)| (*id, -b))
         .collect();
 
+    // max_by_key returns the last maximum, so search from the back to
+    // prefer whoever comes first on a tie.
     fn biggest(entries: &[(Uuid, i64)]) -> Option<usize> {
-        (0..entries.len()).max_by_key(|&i| entries[i].1)
+        (0..entries.len()).rev().max_by_key(|&i| entries[i].1)
     }
 
     let mut transfers = Vec::new();
@@ -136,5 +138,29 @@ mod tests {
         let transfers = simplify(&input);
         assert_eq!(transfers.len(), 2);
         assert_settles(&input, &transfers);
+    }
+
+    #[test]
+    fn result_is_deterministic() {
+        let input = balances(&[100, 100, -100, -100]);
+        let first = simplify(&input);
+        for _ in 0..5 {
+            assert_eq!(simplify(&input), first);
+        }
+        assert_eq!(
+            first,
+            vec![
+                Transfer {
+                    from: id(3),
+                    to: id(1),
+                    amount: 100
+                },
+                Transfer {
+                    from: id(4),
+                    to: id(2),
+                    amount: 100
+                },
+            ]
+        );
     }
 }
