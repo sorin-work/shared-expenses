@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use axum::Router;
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -133,6 +135,11 @@ struct UserWithHash {
     password_hash: String,
 }
 
+/// Checked against when the email is unknown, so that a login for an
+/// unknown email takes as long as one with a wrong password.
+static DUMMY_HASH: LazyLock<String> =
+    LazyLock::new(|| password::hash("not the password").expect("hashing works"));
+
 async fn login(
     State(state): State<AppState>,
     Json(input): Json<LoginInput>,
@@ -150,17 +157,22 @@ async fn login(
     .fetch_optional(&state.pool)
     .await?;
 
-    let Some(found) = found else {
-        return Err(AppError::InvalidCredentials);
-    };
-    if !password::verify_async(input.password, found.password_hash).await? {
-        return Err(AppError::InvalidCredentials);
+    let stored = found
+        .as_ref()
+        .map_or(DUMMY_HASH.as_str(), |f| f.password_hash.as_str())
+        .to_string();
+    let matches = password::verify_async(input.password, stored).await?;
+
+    match found {
+        Some(found) if matches => {
+            let token = state.tokens.issue(found.user.id)?;
+            Ok(Json(Session {
+                token,
+                user: found.user,
+            }))
+        }
+        _ => Err(AppError::InvalidCredentials),
     }
-    let token = state.tokens.issue(found.user.id)?;
-    Ok(Json(Session {
-        token,
-        user: found.user,
-    }))
 }
 
 pub async fn load_user(pool: &sqlx::PgPool, id: Uuid) -> Result<User, AppError> {
