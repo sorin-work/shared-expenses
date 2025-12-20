@@ -235,4 +235,14 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn large_groups_fall_back_to_greedy() {
+        let mut values: Vec<i64> = (1..=10).map(|i| i * 100).collect();
+        values.extend((1..=10).map(|i| -i * 100));
+        let input = balances(&values);
+        let transfers = simplify(&input);
+        assert_settles(&input, &transfers);
+        assert!(transfers.len() < input.len());
+    }
 }
