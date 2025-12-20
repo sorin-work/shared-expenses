@@ -14,6 +14,8 @@ use crate::extract::{Json, Path};
 use crate::state::AppState;
 use crate::validate::Validator;
 
+pub const MAX_MEMBERS: i64 = 50;
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", post(add_placeholder))
@@ -99,6 +101,21 @@ pub async fn ensure_name_available(
     }
 }
 
+pub async fn ensure_room(db: impl PgExecutor<'_>, group_id: Uuid) -> Result<(), AppError> {
+    let count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM members WHERE group_id = $1 AND left_at IS NULL")
+            .bind(group_id)
+            .fetch_one(db)
+            .await?;
+    if count >= MAX_MEMBERS {
+        Err(AppError::Conflict(format!(
+            "a group can have at most {MAX_MEMBERS} members"
+        )))
+    } else {
+        Ok(())
+    }
+}
+
 async fn find_member(
     pool: &PgPool,
     group_id: Uuid,
@@ -140,6 +157,7 @@ async fn add_placeholder(
     v.finish()?;
 
     let mut tx = state.pool.begin().await?;
+    ensure_room(&mut *tx, group_id).await?;
     ensure_name_available(&mut *tx, group_id, &name, None).await?;
     let now = Utc::now();
     let id = insert_member(&mut *tx, group_id, None, &name, "member", now).await?;

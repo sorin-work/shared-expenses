@@ -183,6 +183,7 @@ async fn join(
             claim
         }
         (None, None) => {
+            members::ensure_room(&mut *tx, group.id).await?;
             let name = free_name(&mut tx, group.id, &user.name).await?;
             members::insert_member(&mut *tx, group.id, Some(user.id), &name, "member", now).await?
         }
