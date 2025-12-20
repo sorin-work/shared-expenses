@@ -12,6 +12,9 @@
 use serde::Serialize;
 use uuid::Uuid;
 
+/// Largest number of non-zero balances solved exactly (2^16 subsets).
+pub const EXACT_LIMIT: usize = 16;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct Transfer {
     pub from: Uuid,
@@ -25,7 +28,65 @@ pub struct Transfer {
 pub fn simplify(balances: &[(Uuid, i64)]) -> Vec<Transfer> {
     let open: Vec<(Uuid, i64)> = balances.iter().copied().filter(|(_, b)| *b != 0).collect();
     debug_assert_eq!(open.iter().map(|(_, b)| b).sum::<i64>(), 0);
-    settle_greedily(&open)
+
+    if open.len() > EXACT_LIMIT {
+        return settle_greedily(&open);
+    }
+
+    zero_sum_groups(&open)
+        .iter()
+        .flat_map(|group| settle_greedily(group))
+        .collect()
+}
+
+/// Splits the balances into the largest possible number of zero-sum groups.
+fn zero_sum_groups(open: &[(Uuid, i64)]) -> Vec<Vec<(Uuid, i64)>> {
+    let n = open.len();
+    if n == 0 {
+        return Vec::new();
+    }
+    let full = (1usize << n) - 1;
+
+    // sum[mask] = total balance of the members in mask
+    let mut sum = vec![0i64; full + 1];
+    for mask in 1..=full {
+        let lowest = mask.trailing_zeros() as usize;
+        sum[mask] = sum[mask & (mask - 1)] + open[lowest].1;
+    }
+
+    // best[mask] = most zero-sum groups the members in mask can form, given
+    // that removing members one at a time closes a group whenever the
+    // remaining set sums to zero.
+    let mut best = vec![0u8; full + 1];
+    for mask in 1..=full {
+        let mut most = 0;
+        let mut bits = mask;
+        while bits != 0 {
+            let bit = bits & bits.wrapping_neg();
+            most = most.max(best[mask ^ bit]);
+            bits ^= bit;
+        }
+        best[mask] = most + u8::from(sum[mask] == 0);
+    }
+
+    // Walk back from the full set to recover the groups.
+    let mut groups = Vec::new();
+    let mut current = Vec::new();
+    let mut mask = full;
+    while mask != 0 {
+        let gained = u8::from(sum[mask] == 0);
+        let index = (0..n)
+            .find(|i| mask & (1 << i) != 0 && best[mask ^ (1 << i)] + gained == best[mask])
+            .expect("some member leads to the optimum");
+        current.push(open[index]);
+        mask ^= 1 << index;
+        if sum[mask] == 0 {
+            // Keep the original member order inside each group.
+            current.sort_by_key(|(id, _)| open.iter().position(|(o, _)| o == id));
+            groups.push(std::mem::take(&mut current));
+        }
+    }
+    groups
 }
 
 /// Repeatedly lets the biggest debtor pay the biggest creditor. Settles a
@@ -129,6 +190,17 @@ mod tests {
                 amount: 1000
             }]
         );
+    }
+
+    #[test]
+    fn finds_matching_pairs_greedy_would_miss() {
+        // Greedy (biggest debtor pays biggest creditor) needs 4 transfers
+        // here, but {3, -3} and {4, -2, -2} settle separately in 1 + 2.
+        let input = balances(&[4, 3, -2, -2, -3]);
+        let transfers = simplify(&input);
+        assert_settles(&input, &transfers);
+        assert_eq!(transfers.len(), 3);
+        assert!(settle_greedily(&input).len() > transfers.len());
     }
 
     #[test]
