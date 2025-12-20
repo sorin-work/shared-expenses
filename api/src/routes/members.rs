@@ -81,7 +81,7 @@ pub async fn ensure_name_available(
     let taken: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM members
                          WHERE group_id = $1 AND left_at IS NULL
-                           AND display_name = $2
+                           AND lower(display_name) = lower($2)
                            AND id IS DISTINCT FROM $3)",
     )
     .bind(group_id)

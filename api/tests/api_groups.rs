@@ -265,3 +265,21 @@ async fn claiming_a_placeholder_keeps_its_expenses() {
     let groups = app.get("/api/groups", &friend.token).await.json();
     assert_eq!(groups[0]["my_balance"], -15_000);
 }
+
+#[tokio::test]
+async fn placeholder_names_must_be_unique() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let (group, _) = app.group(&owner, "Flat", "EUR").await;
+    app.placeholder(&owner, &group, "Priya").await;
+    let response = app
+        .post(
+            &format!("/api/groups/{group}/members"),
+            &owner.token,
+            json!({ "display_name": "priya" }),
+        )
+        .await;
+    assert_eq!(response.status, StatusCode::UNPROCESSABLE_ENTITY);
+}
