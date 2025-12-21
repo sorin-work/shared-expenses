@@ -245,4 +245,27 @@ mod tests {
         assert_settles(&input, &transfers);
         assert!(transfers.len() < input.len());
     }
+
+    #[test]
+    fn never_needs_more_than_n_minus_one_transfers() {
+        // A handful of pseudo random cases.
+        let mut seed: u64 = 42;
+        for _ in 0..200 {
+            let n = (seed % 8 + 2) as usize;
+            let mut values = Vec::with_capacity(n);
+            for _ in 0..n - 1 {
+                seed = seed
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                values.push((seed >> 33) as i64 % 5000 - 2500);
+            }
+            values.push(-values.iter().sum::<i64>());
+            let input = balances(&values);
+            let transfers = simplify(&input);
+            assert_settles(&input, &transfers);
+            let non_zero = values.iter().filter(|v| **v != 0).count();
+            assert!(transfers.len() <= non_zero.saturating_sub(1));
+            assert!(transfers.len() <= settle_greedily(&input).len());
+        }
+    }
 }
