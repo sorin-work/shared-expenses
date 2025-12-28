@@ -84,3 +84,61 @@ fn is_email(value: &str) -> bool {
         && !domain.starts_with('.')
         && !domain.ends_with('.')
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_ordinary_emails() {
+        for email in ["a@b.co", "first.last+tag@example.com", "x@sub.domain.org"] {
+            assert!(is_email(email), "{email}");
+        }
+    }
+
+    #[test]
+    fn rejects_malformed_emails() {
+        for email in [
+            "",
+            "plain",
+            "@example.com",
+            "a@b",
+            "a@.com",
+            "a@com.",
+            "a b@c.de",
+            "a@b@c.de",
+        ] {
+            assert!(!is_email(email), "{email}");
+        }
+    }
+
+    #[test]
+    fn text_is_trimmed_and_checked() {
+        let mut v = Validator::new();
+        assert_eq!(v.text("name", "  Flat 4B  ", 10), "Flat 4B");
+        assert!(!v.has_errors());
+        v.text("empty", "   ", 10);
+        v.text("long", "abcdefghijk", 10);
+        let Err(AppError::Validation(fields)) = v.finish() else {
+            panic!("expected validation errors");
+        };
+        assert_eq!(fields["empty"], "is required");
+        assert_eq!(fields["long"], "must be at most 10 characters");
+    }
+
+    #[test]
+    fn length_counts_characters_not_bytes() {
+        let mut v = Validator::new();
+        v.text("name", "Café Zürich", 11);
+        assert!(!v.has_errors());
+    }
+
+    #[test]
+    fn optional_text_turns_blank_into_none() {
+        let mut v = Validator::new();
+        assert_eq!(v.optional_text("notes", Some("  "), 5), None);
+        assert_eq!(v.optional_text("notes", None, 5), None);
+        assert_eq!(v.optional_text("notes", Some(" hi "), 5), Some("hi".into()));
+        assert!(!v.has_errors());
+    }
+}
