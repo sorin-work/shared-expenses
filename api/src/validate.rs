@@ -141,4 +141,15 @@ mod tests {
         assert_eq!(v.optional_text("notes", Some(" hi "), 5), Some("hi".into()));
         assert!(!v.has_errors());
     }
+
+    #[test]
+    fn keeps_the_first_error_per_field() {
+        let mut v = Validator::new();
+        v.add("amount", "first");
+        v.add("amount", "second");
+        let Err(AppError::Validation(fields)) = v.finish() else {
+            panic!("expected validation errors");
+        };
+        assert_eq!(fields["amount"], "first");
+    }
 }
