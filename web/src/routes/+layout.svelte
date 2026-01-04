@@ -17,6 +17,11 @@
 			});
 		}
 	});
+
+	function signOut() {
+		session.signOut();
+		goto('/login');
+	}
 </script>
 
 <header>
@@ -25,6 +30,7 @@
 		{#if session.user}
 			<span class="spacer"></span>
 			<span class="who">{session.user.name}</span>
+			<button class="link-button" onclick={signOut}>Sign out</button>
 		{/if}
 	</nav>
 </header>
