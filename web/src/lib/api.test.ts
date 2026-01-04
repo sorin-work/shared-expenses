@@ -58,4 +58,20 @@ describe('request', () => {
 		expect(err.code).toBe('validation_failed');
 		expect(err.field('name')).toBe('is required');
 	});
+
+	it('copes with non-json error pages', async () => {
+		const fetch = vi.fn(async () => new Response('<html>Bad gateway</html>', { status: 502 }));
+		const err = await failure(request('/api/groups', { fetch }));
+		expect(err.code).toBe('http_error');
+		expect(err.message).toMatch(/server had a problem/);
+	});
+
+	it('reports network failures', async () => {
+		const fetch = vi.fn(async () => {
+			throw new TypeError('Failed to fetch');
+		});
+		const err = await failure(request('/api/groups', { fetch }));
+		expect(err.status).toBe(0);
+		expect(err.code).toBe('network_error');
+	});
 });
