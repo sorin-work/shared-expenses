@@ -2,6 +2,7 @@
 	import { expenses as expensesApi, groups as groupsApi } from '$lib/client';
 	import BalanceBadge from '$lib/components/BalanceBadge.svelte';
 	import ExpenseRow from '$lib/components/ExpenseRow.svelte';
+	import { formatMonth, groupByMonth } from '$lib/dates';
 	import { errorMessage } from '$lib/errors';
 	import { useGroup } from '$lib/group.svelte';
 	import type { Expense } from '$lib/types';
@@ -43,6 +44,8 @@
 			})
 			.catch(() => (myBalance = null));
 	});
+
+	const months = $derived(groupByMonth(items, (e) => e.spent_on));
 </script>
 
 <div class="row summary">
@@ -64,8 +67,16 @@
 	</div>
 {:else}
 	<div class="card list">
-		{#each items as expense (expense.id)}
-			<ExpenseRow {expense} currency={group.currency} me={group.my_member_id} nameOf={ctx.nameOf} />
+		{#each months as [month, monthItems] (month)}
+			<h3 class="month">{formatMonth(month)}</h3>
+			{#each monthItems as expense (expense.id)}
+				<ExpenseRow
+					{expense}
+					currency={group.currency}
+					me={group.my_member_id}
+					nameOf={ctx.nameOf}
+				/>
+			{/each}
 		{/each}
 	</div>
 {/if}
@@ -81,5 +92,13 @@
 
 	.list {
 		padding-top: 0.5rem;
+	}
+
+	.month {
+		font-size: 0.8rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--muted);
+		margin: 1rem 0 0.25rem;
 	}
 </style>
