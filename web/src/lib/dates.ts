@@ -1,0 +1,34 @@
+/** Today's date in the local timezone as YYYY-MM-DD. */
+export function today(now: Date = new Date()): string {
+	return now.toISOString().slice(0, 10);
+}
+
+/** "12 Mar 2026" for a YYYY-MM-DD date. */
+export function formatDate(isoDate: string, locale?: string): string {
+	return new Intl.DateTimeFormat(locale, {
+		day: 'numeric',
+		month: 'short',
+		year: 'numeric'
+	}).format(new Date(isoDate));
+}
+
+/** Groups items by a YYYY-MM month key, keeping their order. */
+export function groupByMonth<T>(items: T[], dateOf: (item: T) => string): [string, T[]][] {
+	const groups = new Map<string, T[]>();
+	for (const item of items) {
+		const key = dateOf(item).slice(0, 7);
+		const list = groups.get(key);
+		if (list) list.push(item);
+		else groups.set(key, [item]);
+	}
+	return [...groups.entries()];
+}
+
+export function formatMonth(key: string, locale?: string): string {
+	const [y, m] = key.split('-').map(Number);
+	return new Intl.DateTimeFormat(locale, {
+		month: 'long',
+		year: 'numeric',
+		timeZone: 'UTC'
+	}).format(new Date(Date.UTC(y, m - 1, 1)));
+}
