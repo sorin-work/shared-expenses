@@ -1,8 +1,8 @@
 // Typed calls to the API, using the signed-in session.
 
-import { request, type ApiOptions } from './api';
+import { query, request, type ApiOptions } from './api';
 import { session } from './session.svelte';
-import type { GroupDetail, GroupSummary, Session, User } from './types';
+import type { Balances, ExpensePage, GroupDetail, GroupSummary, Session, User } from './types';
 
 function call<T>(path: string, options: Omit<ApiOptions, 'token'> = {}) {
 	return request<T>(path, { ...options, token: session.token });
@@ -22,5 +22,16 @@ export const groups = {
 	list: () => call<GroupSummary[]>('/api/groups'),
 	create: (name: string, currency: string) =>
 		call<GroupDetail>('/api/groups', { method: 'POST', body: { name, currency } }),
-	get: (id: string) => call<GroupDetail>(g(id))
+	get: (id: string) => call<GroupDetail>(g(id)),
+	balances: (id: string) => call<Balances>(`${g(id)}/balances`)
+};
+
+export interface ExpenseFilters {
+	offset?: number;
+	limit?: number;
+}
+
+export const expenses = {
+	list: (groupId: string, filters: ExpenseFilters = {}) =>
+		call<ExpensePage>(`${g(groupId)}/expenses${query({ ...filters })}`)
 };
