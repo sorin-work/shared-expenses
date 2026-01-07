@@ -90,6 +90,14 @@
 	<p class="alert" role="alert">{loadError}</p>
 {:else if groups === null}
 	<p class="muted">Loading…</p>
+{:else if groups.length === 0 && !creating}
+	<div class="card empty">
+		<p>You're not in any groups yet.</p>
+		<p class="small">
+			Create one for your flat, your partner or your next trip, or ask a friend for their invite
+			link.
+		</p>
+	</div>
 {:else}
 	<ul class="groups">
 		{#each groups as group (group.id)}
