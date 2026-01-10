@@ -1,0 +1,42 @@
+name: shared-expenses
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: shared_expenses
+      POSTGRES_PASSWORD: shared_expenses
+      POSTGRES_DB: shared_expenses
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - '${DB_PORT:-5447}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U shared_expenses -d shared_expenses']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./api
+    environment:
+      DATABASE_URL: postgres://shared_expenses:shared_expenses@db:5432/shared_expenses
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret-change-me-0123456789}
+      TOKEN_TTL_HOURS: ${TOKEN_TTL_HOURS:-168}
+      RUST_LOG: ${RUST_LOG:-shared_expenses_api=info,tower_http=info}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '${API_PORT:-4407}:4407'
+
+  web:
+    build: ./web
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - '${WEB_PORT:-5187}:80'
+
+volumes:
+  db-data:
