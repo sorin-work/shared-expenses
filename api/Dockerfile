@@ -1,10 +1,17 @@
 FROM rust:1-slim-trixie AS build
 WORKDIR /src
 
+# Build the dependencies first so they are cached between source changes.
 COPY Cargo.toml Cargo.lock ./
+RUN mkdir src \
+  && echo 'fn main() {}' > src/main.rs \
+  && touch src/lib.rs \
+  && cargo build --release --locked \
+  && rm -rf src
+
 COPY src ./src
 COPY migrations ./migrations
-RUN cargo build --release --locked
+RUN touch src/main.rs src/lib.rs && cargo build --release --locked
 
 FROM debian:trixie-slim
 RUN apt-get update \
