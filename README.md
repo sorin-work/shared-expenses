@@ -5,6 +5,24 @@ invite people with a link (or add the ones who don't use the app as
 placeholders), record who paid for what, and let the app work out who owes
 whom and the fewest payments that settle everything.
 
+## Running with Docker
+
+```bash
+cp .env.example .env   # optional, the defaults work
+docker compose up --build
+```
+
+Then open http://localhost:5187 and create an account.
+
+| Service | Host port             | Notes                                               |
+| ------- | --------------------- | --------------------------------------------------- |
+| web     | http://localhost:5187 | nginx, serves the app and proxies `/api` to the API |
+| api     | http://localhost:4407 | `GET /healthz` for health checks                    |
+| db      | `localhost:5447`      | user, password and database `shared_expenses`       |
+
+Ports can be changed with `WEB_PORT`, `API_PORT` and `DB_PORT`. Data lives in
+the `db-data` volume; `docker compose down -v` removes it.
+
 ## Running locally
 
 You need Rust (stable), Node 22+ and a Postgres database. The easiest way is
