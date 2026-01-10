@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use shared_expenses_api::auth::token::TokenKeys;
 use shared_expenses_api::config::Config;
@@ -22,11 +23,27 @@ fn init_tracing() {
     tracing_subscriber::fmt().with_env_filter(filter).init();
 }
 
+/// Postgres may still be starting when the API comes up, so retry for a bit.
+async fn connect_with_retry(url: &str) -> Result<sqlx::PgPool, sqlx::Error> {
+    let mut attempt = 1;
+    loop {
+        match connect(url).await {
+            Ok(pool) => return Ok(pool),
+            Err(err) if attempt < 10 => {
+                tracing::warn!(error = %err, attempt, "database not reachable yet");
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                attempt += 1;
+            }
+            Err(err) => return Err(err),
+        }
+    }
+}
+
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
     init_tracing();
     let config = Config::from_env()?;
 
-    let pool = connect(&config.database_url).await?;
+    let pool = connect_with_retry(&config.database_url).await?;
     MIGRATOR.run(&pool).await?;
     tracing::info!("migrations applied");
 
