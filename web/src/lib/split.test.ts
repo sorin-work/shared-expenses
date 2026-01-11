@@ -45,4 +45,10 @@ describe('previewSplit', () => {
 		const result = amounts(previewSplit(Number.MAX_SAFE_INTEGER, 'shares', rows(1, 2)));
 		expect(result.reduce((a, b) => a + b, 0)).toBe(Number.MAX_SAFE_INTEGER);
 	});
+
+	it('rejects missing amounts, people and values', () => {
+		expect(previewSplit(0, 'equal', rows(0)).ok).toBe(false);
+		expect(previewSplit(100, 'equal', []).ok).toBe(false);
+		expect(previewSplit(100, 'shares', rows(1, 0)).ok).toBe(false);
+	});
 });
