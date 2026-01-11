@@ -41,6 +41,16 @@ export JWT_SECRET=local-development-secret-change-me-0123456789
 cargo run
 ```
 
+Web (http://localhost:5187, proxies `/api` to the API):
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Set `API_URL` if the API is not on `http://localhost:4407`.
+
 ## Tests and linting
 
 API:
@@ -55,6 +65,15 @@ cargo test
 The split, balance and settle up logic, CSV writer, config and validation
 have unit tests. `tests/http.rs` exercises routing, auth and validation
 through the axum router without a database.
+
+Web:
+
+```bash
+cd web
+npm run lint    # prettier + eslint
+npm run check   # svelte-check / TypeScript
+npm test        # vitest
+```
 
 ## License
 
