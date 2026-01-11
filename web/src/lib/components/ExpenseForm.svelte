@@ -52,6 +52,7 @@
 	// svelte-ignore state_referenced_locally
 	let paidBy = $state(initial?.paid_by ?? group.my_member_id);
 	let category = $state(initial?.category ?? 'general');
+	let notes = $state(initial?.notes ?? '');
 	let method = $state<SplitMethod>(initial?.split_method ?? 'equal');
 
 	// Per person: included or not, and the text typed for the current method.
@@ -155,7 +156,7 @@
 				split_method: method,
 				category,
 				spent_on: spentOn,
-				notes: null,
+				notes: notes.trim() || null,
 				splits: rows.map((r) => ({
 					member_id: r.memberId,
 					value: method === 'equal' ? 0 : r.value
@@ -269,6 +270,12 @@
 		{/if}
 		{#if fields.splits}<p class="field-error">{fields.splits}</p>{/if}
 	</fieldset>
+
+	<div class="field">
+		<label for="notes">Notes <span class="muted">(optional)</span></label>
+		<textarea id="notes" rows="2" bind:value={notes} maxlength="1000"></textarea>
+		{#if fields.notes}<p class="field-error">{fields.notes}</p>{/if}
+	</div>
 
 	{#if error}<p class="alert" role="alert">{error}</p>{/if}
 	<div class="row actions">
