@@ -2,7 +2,16 @@
 
 import { query, request, type ApiOptions } from './api';
 import { session } from './session.svelte';
-import type { Balances, ExpensePage, GroupDetail, GroupSummary, Session, User } from './types';
+import type {
+	Balances,
+	Expense,
+	ExpenseInput,
+	ExpensePage,
+	GroupDetail,
+	GroupSummary,
+	Session,
+	User
+} from './types';
 
 function call<T>(path: string, options: Omit<ApiOptions, 'token'> = {}) {
 	return request<T>(path, { ...options, token: session.token });
@@ -33,5 +42,7 @@ export interface ExpenseFilters {
 
 export const expenses = {
 	list: (groupId: string, filters: ExpenseFilters = {}) =>
-		call<ExpensePage>(`${g(groupId)}/expenses${query({ ...filters })}`)
+		call<ExpensePage>(`${g(groupId)}/expenses${query({ ...filters })}`),
+	create: (groupId: string, input: ExpenseInput) =>
+		call<Expense>(`${g(groupId)}/expenses`, { method: 'POST', body: input })
 };
