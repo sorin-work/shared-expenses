@@ -36,6 +36,9 @@ export const groups = {
 };
 
 export interface ExpenseFilters {
+	q?: string;
+	category?: string;
+	member?: string;
 	offset?: number;
 	limit?: number;
 }

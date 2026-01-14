@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { expenses as expensesApi, groups as groupsApi } from '$lib/client';
+	import { CATEGORIES } from '$lib/categories';
 	import BalanceBadge from '$lib/components/BalanceBadge.svelte';
 	import ExpenseRow from '$lib/components/ExpenseRow.svelte';
 	import { formatMonth, groupByMonth } from '$lib/dates';
@@ -15,11 +16,25 @@
 	let error = $state('');
 	let myBalance = $state<number | null>(null);
 
+	let search = $state('');
+	let categoryFilter = $state('');
+	let memberFilter = $state('');
+
+	let debounced = $state('');
+	$effect(() => {
+		const value = search;
+		const timer = setTimeout(() => (debounced = value), 250);
+		return () => clearTimeout(timer);
+	});
+
 	async function fetchPage(offset: number) {
 		loading = true;
 		error = '';
 		try {
 			const page = await expensesApi.list(group.id, {
+				q: debounced,
+				category: categoryFilter,
+				member: memberFilter,
 				offset,
 				limit: 200
 			});
@@ -32,7 +47,8 @@
 	}
 
 	$effect(() => {
-		void group.id;
+		// Re-run whenever a filter changes.
+		void [debounced, categoryFilter, memberFilter, group.id];
 		fetchPage(0);
 	});
 
@@ -46,6 +62,7 @@
 	});
 
 	const months = $derived(groupByMonth(items, (e) => e.spent_on));
+	const filtered = $derived(debounced !== '' || categoryFilter !== '' || memberFilter !== '');
 </script>
 
 <div class="row summary">
@@ -58,12 +75,37 @@
 	<a class="button primary" href="/groups/{group.id}/expenses/new">Add expense</a>
 </div>
 
+<div class="filters">
+	<input
+		type="search"
+		placeholder="Search expenses"
+		aria-label="Search expenses"
+		bind:value={search}
+	/>
+	<select aria-label="Category" bind:value={categoryFilter}>
+		<option value="">All categories</option>
+		{#each CATEGORIES as c (c.id)}
+			<option value={c.id}>{c.label}</option>
+		{/each}
+	</select>
+	<select aria-label="Person" bind:value={memberFilter}>
+		<option value="">Everyone</option>
+		{#each group.members as m (m.id)}
+			<option value={m.id}>{m.id === group.my_member_id ? 'You' : m.display_name}</option>
+		{/each}
+	</select>
+</div>
+
 {#if error}
 	<p class="alert" role="alert">{error}</p>
 {:else if !loading && items.length === 0}
 	<div class="card empty">
-		<p>No expenses yet.</p>
-		<p class="small">Add the first one to get started.</p>
+		{#if filtered}
+			<p>No expenses match these filters.</p>
+		{:else}
+			<p>No expenses yet.</p>
+			<p class="small">Add the first one to get started.</p>
+		{/if}
 	</div>
 {:else}
 	<div class="card list">
@@ -90,6 +132,13 @@
 		margin-right: 0.5rem;
 	}
 
+	.filters {
+		display: grid;
+		grid-template-columns: 1fr 180px 160px;
+		gap: 0.5rem;
+		margin-bottom: 1rem;
+	}
+
 	.list {
 		padding-top: 0.5rem;
 	}
@@ -100,5 +149,15 @@
 		letter-spacing: 0.04em;
 		color: var(--muted);
 		margin: 1rem 0 0.25rem;
+	}
+
+	@media (max-width: 640px) {
+		.filters {
+			grid-template-columns: 1fr 1fr;
+		}
+
+		.filters input {
+			grid-column: 1 / -1;
+		}
 	}
 </style>
