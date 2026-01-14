@@ -338,6 +338,10 @@ pub async fn insert_expense(
 
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
+    pub category: Option<String>,
+    pub q: Option<String>,
+    /// Only expenses this member paid for or has a share in.
+    pub member: Option<Uuid>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
@@ -358,20 +362,38 @@ async fn list(
 
     let limit = query.limit.unwrap_or(50).max(1);
     let offset = query.offset.unwrap_or(0).max(0);
-    let total: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM expenses WHERE group_id = $1 AND deleted_at IS NULL",
-    )
-    .bind(group_id)
-    .fetch_one(&state.pool)
-    .await?;
+    let category = query.category.filter(|c| !c.is_empty());
+    let search = query
+        .q
+        .as_deref()
+        .map(str::trim)
+        .filter(|q| !q.is_empty())
+        .map(|q| format!("%{q}%"));
+
+    const FILTER: &str = "e.group_id = $1 AND e.deleted_at IS NULL
+           AND ($2::text IS NULL OR e.category = $2)
+           AND ($3::text IS NULL OR e.description ILIKE $3 OR e.notes ILIKE $3)
+           AND ($4::uuid IS NULL OR e.paid_by = $4
+                OR EXISTS (SELECT 1 FROM expense_shares s
+                            WHERE s.expense_id = e.id AND s.member_id = $4))";
+
+    let total: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM expenses e WHERE {FILTER}"))
+        .bind(group_id)
+        .bind(&category)
+        .bind(&search)
+        .bind(query.member)
+        .fetch_one(&state.pool)
+        .await?;
 
     let mut items = sqlx::query_as::<_, ExpenseView>(&format!(
-        "SELECT {EXPENSE_COLUMNS} FROM expenses
-          WHERE group_id = $1 AND deleted_at IS NULL
-          ORDER BY spent_on DESC, created_at DESC, id
-          LIMIT $2 OFFSET $3"
+        "SELECT {EXPENSE_COLUMNS} FROM expenses e WHERE {FILTER}
+          ORDER BY e.spent_on DESC, e.created_at DESC, e.id
+          LIMIT $5 OFFSET $6"
     ))
     .bind(group_id)
+    .bind(&category)
+    .bind(&search)
+    .bind(query.member)
     .bind(limit)
     .bind(offset)
     .fetch_all(&state.pool)

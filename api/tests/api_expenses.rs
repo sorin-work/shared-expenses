@@ -163,3 +163,49 @@ async fn basic_fields_are_validated() {
         assert!(fields[field].is_string(), "{field} in {fields}");
     }
 }
+
+#[tokio::test]
+async fn listing_filters_and_paginates() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let (group, me) = app.group(&owner, "Flat", "EUR").await;
+    let b = app.placeholder(&owner, &group, "B").await;
+    for description in ["Rent", "Groceries 50% off", "Groceries"] {
+        app.equal_expense(&owner, &group, description, 1_000, &me, &[&me])
+            .await;
+    }
+    app.equal_expense(&owner, &group, "Taxi", 1_000, &me, &[&b])
+        .await;
+    let uri = format!("/api/groups/{group}/expenses");
+
+    let all = app.get(&uri, &owner.token).await.json();
+    assert_eq!(all["total"], 4);
+
+    let search = app
+        .get(&format!("{uri}?q=groceries"), &owner.token)
+        .await
+        .json();
+    assert_eq!(search["total"], 2);
+
+    let for_b = app
+        .get(&format!("{uri}?member={b}"), &owner.token)
+        .await
+        .json();
+    assert_eq!(for_b["total"], 1);
+    assert_eq!(for_b["items"][0]["description"], "Taxi");
+
+    let page = app
+        .get(&format!("{uri}?limit=3&offset=3"), &owner.token)
+        .await
+        .json();
+    assert_eq!(page["items"].as_array().unwrap().len(), 1);
+    assert_eq!(page["total"], 4);
+
+    let none = app
+        .get(&format!("{uri}?category=rent"), &owner.token)
+        .await
+        .json();
+    assert_eq!(none["total"], 0);
+}
