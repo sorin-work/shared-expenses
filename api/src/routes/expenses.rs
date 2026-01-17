@@ -26,6 +26,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
         .route("/{expense_id}", get(show).put(update).delete(remove))
+        .route("/{expense_id}/history", get(history))
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -303,6 +304,32 @@ async fn insert_shares(
     Ok(())
 }
 
+async fn record_revision(
+    conn: &mut PgConnection,
+    expense: &ExpenseView,
+    action: &str,
+    changed_by: Uuid,
+    at: DateTime<Utc>,
+) -> Result<(), AppError> {
+    let snapshot = serde_json::to_value(expense)
+        .map_err(|e| AppError::Internal(format!("serialising snapshot: {e}")))?;
+    sqlx::query(
+        "INSERT INTO expense_revisions (id, expense_id, revision, action, snapshot, changed_by, changed_at)
+         VALUES ($1, $2,
+                 (SELECT COALESCE(max(revision), 0) + 1 FROM expense_revisions WHERE expense_id = $2),
+                 $3, $4, $5, $6)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(expense.id)
+    .bind(action)
+    .bind(snapshot)
+    .bind(changed_by)
+    .bind(at)
+    .execute(&mut *conn)
+    .await?;
+    Ok(())
+}
+
 /// Writes a new expense with its shares, first revision and feed entry.
 pub async fn insert_expense(
     conn: &mut PgConnection,
@@ -333,6 +360,7 @@ pub async fn insert_expense(
     insert_shares(conn, id, prepared).await?;
 
     let expense = load_expense(conn, group_id, id).await?;
+    record_revision(conn, &expense, "created", actor, at).await?;
     Ok(expense)
 }
 
@@ -479,6 +507,7 @@ async fn update(
     insert_shares(&mut tx, expense_id, &prepared).await?;
 
     let after = load_expense(&mut tx, group_id, expense_id).await?;
+    record_revision(&mut tx, &after, "updated", auth.id, now).await?;
     tx.commit().await?;
     Ok(Json(after))
 }
@@ -492,14 +521,49 @@ async fn remove(
     let now = Utc::now();
     let mut tx = state.pool.begin().await?;
 
-    load_expense(&mut tx, group_id, expense_id).await?;
+    let expense = load_expense(&mut tx, group_id, expense_id).await?;
     sqlx::query("UPDATE expenses SET deleted_at = $2 WHERE id = $1")
         .bind(expense_id)
         .bind(now)
         .execute(&mut *tx)
         .await?;
+    record_revision(&mut tx, &expense, "deleted", auth.id, now).await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct Revision {
+    pub revision: i32,
+    pub action: String,
+    pub snapshot: serde_json::Value,
+    pub changed_by: Option<Uuid>,
+    pub changed_by_name: Option<String>,
+    pub changed_at: DateTime<Utc>,
+}
+
+async fn history(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((group_id, expense_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<Vec<Revision>>, AppError> {
+    access::membership(&state.pool, group_id, auth.id).await?;
+    let revisions = sqlx::query_as::<_, Revision>(
+        "SELECT r.revision, r.action, r.snapshot, r.changed_by, u.name AS changed_by_name, r.changed_at
+           FROM expense_revisions r
+           JOIN expenses e ON e.id = r.expense_id
+           LEFT JOIN users u ON u.id = r.changed_by
+          WHERE r.expense_id = $1 AND e.group_id = $2
+          ORDER BY r.revision",
+    )
+    .bind(expense_id)
+    .bind(group_id)
+    .fetch_all(&state.pool)
+    .await?;
+    if revisions.is_empty() {
+        return Err(AppError::NotFound("expense"));
+    }
+    Ok(Json(revisions))
 }
 
 #[cfg(test)]
