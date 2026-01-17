@@ -46,6 +46,11 @@ export interface ExpenseFilters {
 export const expenses = {
 	list: (groupId: string, filters: ExpenseFilters = {}) =>
 		call<ExpensePage>(`${g(groupId)}/expenses${query({ ...filters })}`),
+	get: (groupId: string, id: string) => call<Expense>(`${g(groupId)}/expenses/${id}`),
 	create: (groupId: string, input: ExpenseInput) =>
-		call<Expense>(`${g(groupId)}/expenses`, { method: 'POST', body: input })
+		call<Expense>(`${g(groupId)}/expenses`, { method: 'POST', body: input }),
+	update: (groupId: string, id: string, input: ExpenseInput) =>
+		call<Expense>(`${g(groupId)}/expenses/${id}`, { method: 'PUT', body: input }),
+	remove: (groupId: string, id: string) =>
+		call<void>(`${g(groupId)}/expenses/${id}`, { method: 'DELETE' })
 };
