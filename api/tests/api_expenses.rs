@@ -165,6 +165,93 @@ async fn basic_fields_are_validated() {
 }
 
 #[tokio::test]
+async fn edits_are_kept_in_the_history() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let (group, me) = app.group(&owner, "Flat", "EUR").await;
+    let b = app.placeholder(&owner, &group, "B").await;
+    let expense = app
+        .equal_expense(&owner, &group, "Groceries", 2_000, &me, &[&me, &b])
+        .await;
+    let id = expense["id"].as_str().unwrap();
+    let uri = format!("/api/groups/{group}/expenses/{id}");
+
+    let edit = json!({
+        "description": "Groceries", "amount_cents": 2_400, "paid_by": me,
+        "split_method": "equal", "spent_on": common::today(), "notes": "forgot the wine",
+        "splits": [{ "member_id": me }, { "member_id": b }],
+    });
+    let updated = app.put(&uri, &owner.token, edit.clone()).await;
+    assert_eq!(updated.status, StatusCode::OK, "{}", updated.text);
+    assert_eq!(amounts(&updated.json()), vec![1_200, 1_200]);
+
+    // Saving the same thing again doesn't add a revision.
+    app.put(&uri, &owner.token, edit).await;
+
+    let history = app
+        .get(&format!("{uri}/history"), &owner.token)
+        .await
+        .json();
+    let revisions = history.as_array().unwrap();
+    assert_eq!(revisions.len(), 2);
+    assert_eq!(revisions[0]["action"], "created");
+    assert_eq!(revisions[0]["snapshot"]["amount_cents"], 2_000);
+    assert_eq!(revisions[1]["action"], "updated");
+    assert_eq!(revisions[1]["snapshot"]["notes"], "forgot the wine");
+    assert_eq!(revisions[1]["changed_by_name"], "Owner");
+}
+
+#[tokio::test]
+async fn deleted_expenses_disappear_but_keep_their_history() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let (group, me) = app.group(&owner, "Flat", "EUR").await;
+    let b = app.placeholder(&owner, &group, "B").await;
+    let expense = app
+        .equal_expense(&owner, &group, "Oops", 5_000, &me, &[&me, &b])
+        .await;
+    let id = expense["id"].as_str().unwrap();
+    let uri = format!("/api/groups/{group}/expenses/{id}");
+
+    assert_eq!(
+        app.delete(&uri, &owner.token).await.status,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        app.get(&uri, &owner.token).await.status,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        app.delete(&uri, &owner.token).await.status,
+        StatusCode::NOT_FOUND
+    );
+
+    let list = app
+        .get(&format!("/api/groups/{group}/expenses"), &owner.token)
+        .await
+        .json();
+    assert_eq!(list["total"], 0);
+    let balances = app
+        .get(&format!("/api/groups/{group}/balances"), &owner.token)
+        .await
+        .json();
+    assert_eq!(balances["balances"][0]["net"], 0);
+
+    let history = app
+        .get(&format!("{uri}/history"), &owner.token)
+        .await
+        .json();
+    assert_eq!(
+        history.as_array().unwrap().last().unwrap()["action"],
+        "deleted"
+    );
+}
+
+#[tokio::test]
 async fn listing_filters_and_paginates() {
     let Some(app) = common::app().await else {
         return;
