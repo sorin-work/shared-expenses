@@ -364,6 +364,42 @@ pub async fn insert_expense(
     Ok(expense)
 }
 
+/// Names of the fields that differ between the stored expense and the edit.
+fn changed_fields(before: &ExpenseView, after: &Prepared) -> Vec<&'static str> {
+    let mut changed = Vec::new();
+    if before.description != after.description {
+        changed.push("description");
+    }
+    if before.amount_cents != after.amount {
+        changed.push("amount");
+    }
+    if before.paid_by != after.paid_by {
+        changed.push("paid_by");
+    }
+    if before.category != after.category {
+        changed.push("category");
+    }
+    if before.spent_on != after.spent_on {
+        changed.push("date");
+    }
+    if before.notes != after.notes {
+        changed.push("notes");
+    }
+    let shares_after: Vec<ShareView> = after
+        .shares
+        .iter()
+        .map(|(member_id, input, amount)| ShareView {
+            member_id: *member_id,
+            input: *input,
+            amount_cents: *amount,
+        })
+        .collect();
+    if before.split_method != after.method.as_str() || before.shares != shares_after {
+        changed.push("split");
+    }
+    changed
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
     pub category: Option<String>,
@@ -483,6 +519,11 @@ async fn update(
     involved.push(before.paid_by);
     let prepared = prepare(&mut *tx, group_id, &input, &involved, now.date_naive()).await?;
 
+    let changed = changed_fields(&before, &prepared);
+    if changed.is_empty() {
+        return Ok(Json(before));
+    }
+
     sqlx::query(
         "UPDATE expenses
             SET description = $2, amount_cents = $3, paid_by = $4, split_method = $5,
@@ -569,6 +610,85 @@ async fn history(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn view() -> ExpenseView {
+        let a = Uuid::from_u128(1);
+        let b = Uuid::from_u128(2);
+        ExpenseView {
+            id: Uuid::from_u128(9),
+            group_id: Uuid::from_u128(8),
+            description: "Groceries".into(),
+            amount_cents: 1000,
+            paid_by: a,
+            split_method: "equal".into(),
+            category: "groceries".into(),
+            spent_on: NaiveDate::from_ymd_opt(2026, 1, 10).unwrap(),
+            notes: None,
+            created_by: Uuid::from_u128(7),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            shares: vec![
+                ShareView {
+                    member_id: a,
+                    input: 1,
+                    amount_cents: 500,
+                },
+                ShareView {
+                    member_id: b,
+                    input: 1,
+                    amount_cents: 500,
+                },
+            ],
+        }
+    }
+
+    fn prepared_from(view: &ExpenseView) -> Prepared {
+        Prepared {
+            description: view.description.clone(),
+            amount: view.amount_cents,
+            paid_by: view.paid_by,
+            paid_by_name: "A".into(),
+            method: view.split_method.parse().unwrap(),
+            category: view.category.clone(),
+            spent_on: view.spent_on,
+            notes: view.notes.clone(),
+            shares: view
+                .shares
+                .iter()
+                .map(|s| (s.member_id, s.input, s.amount_cents))
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn unchanged_expense_has_no_changes() {
+        let before = view();
+        assert!(changed_fields(&before, &prepared_from(&before)).is_empty());
+    }
+
+    #[test]
+    fn detects_changed_fields() {
+        let before = view();
+        let mut after = prepared_from(&before);
+        after.description = "Weekly shop".into();
+        after.notes = Some("Lidl".into());
+        assert_eq!(
+            changed_fields(&before, &after),
+            vec!["description", "notes"]
+        );
+    }
+
+    #[test]
+    fn a_different_split_counts_as_a_change() {
+        let before = view();
+        let mut after = prepared_from(&before);
+        after.method = SplitMethod::Exact;
+        after.shares[0].1 = 300;
+        after.shares[0].2 = 300;
+        after.shares[1].1 = 700;
+        after.shares[1].2 = 700;
+        assert_eq!(changed_fields(&before, &after), vec!["split"]);
+    }
 
     #[test]
     fn split_errors_point_at_the_right_field() {
