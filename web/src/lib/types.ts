@@ -85,6 +85,15 @@ export interface ExpenseInput {
 	splits: { member_id: string; value: number }[];
 }
 
+export interface Revision {
+	revision: number;
+	action: 'created' | 'updated' | 'deleted';
+	snapshot: Expense;
+	changed_by: string | null;
+	changed_by_name: string | null;
+	changed_at: string;
+}
+
 export interface Settlement {
 	id: string;
 	from_member: string;

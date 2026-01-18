@@ -12,6 +12,20 @@ export function formatDate(isoDate: string, locale?: string): string {
 	}).format(new Date(isoDate));
 }
 
+/** "just now", "5 min ago", "3 h ago", "yesterday", "4 days ago" or a date. */
+export function timeAgo(iso: string, now: Date = new Date(), locale?: string): string {
+	const seconds = Math.round((now.getTime() - new Date(iso).getTime()) / 1000);
+	if (seconds < 60) return 'just now';
+	const minutes = Math.floor(seconds / 60);
+	if (minutes < 60) return `${minutes} min ago`;
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `${hours} h ago`;
+	const days = Math.floor(hours / 24);
+	if (days === 1) return 'yesterday';
+	if (days < 7) return `${days} days ago`;
+	return formatDate(new Date(iso).toISOString(), locale);
+}
+
 /** Groups items by a YYYY-MM month key, keeping their order. */
 export function groupByMonth<T>(items: T[], dateOf: (item: T) => string): [string, T[]][] {
 	const groups = new Map<string, T[]>();

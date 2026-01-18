@@ -9,6 +9,7 @@ import type {
 	ExpensePage,
 	GroupDetail,
 	GroupSummary,
+	Revision,
 	Session,
 	User
 } from './types';
@@ -52,5 +53,6 @@ export const expenses = {
 	update: (groupId: string, id: string, input: ExpenseInput) =>
 		call<Expense>(`${g(groupId)}/expenses/${id}`, { method: 'PUT', body: input }),
 	remove: (groupId: string, id: string) =>
-		call<void>(`${g(groupId)}/expenses/${id}`, { method: 'DELETE' })
+		call<void>(`${g(groupId)}/expenses/${id}`, { method: 'DELETE' }),
+	history: (groupId: string, id: string) => call<Revision[]>(`${g(groupId)}/expenses/${id}/history`)
 };
