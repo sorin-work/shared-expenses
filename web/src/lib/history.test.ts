@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { diffExpenses } from './history';
+import { describeSplit, diffExpenses } from './history';
 import type { Expense } from './types';
 
 const names: Record<string, string> = { a: 'Alex', b: 'Maya' };
@@ -53,5 +53,20 @@ describe('diffExpenses', () => {
 			from: 'equally: Alex, Maya',
 			to: 'by percentages: Alex 60%, Maya 40%'
 		});
+	});
+});
+
+describe('describeSplit', () => {
+	it('shows exact amounts and share counts', () => {
+		const shares = [
+			{ member_id: 'a', input: 2, amount_cents: 1333 },
+			{ member_id: 'b', input: 1, amount_cents: 667 }
+		];
+		expect(describeSplit('shares', shares, nameOf, 'EUR', 'en-GB')).toBe(
+			'by shares: Alex ×2, Maya ×1'
+		);
+		expect(describeSplit('exact', shares, nameOf, 'EUR', 'en-GB')).toBe(
+			'by exact amounts: Alex €13.33, Maya €6.67'
+		);
 	});
 });
