@@ -1,6 +1,9 @@
 /** Today's date in the local timezone as YYYY-MM-DD. */
 export function today(now: Date = new Date()): string {
-	return now.toISOString().slice(0, 10);
+	const y = now.getFullYear();
+	const m = String(now.getMonth() + 1).padStart(2, '0');
+	const d = String(now.getDate()).padStart(2, '0');
+	return `${y}-${m}-${d}`;
 }
 
 /** "12 Mar 2026" for a YYYY-MM-DD date. */

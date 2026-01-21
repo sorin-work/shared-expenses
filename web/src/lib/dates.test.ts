@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatMonth, groupByMonth, timeAgo } from './dates';
+import { formatDate, formatMonth, groupByMonth, timeAgo, today } from './dates';
 
 describe('dates', () => {
+	it('formats today as a local date', () => {
+		expect(today(new Date(2026, 0, 5, 23, 30))).toBe('2026-01-05');
+	});
+
 	it('formats dates without shifting the day', () => {
 		expect(formatDate('2026-03-01', 'en-GB')).toBe('1 Mar 2026');
 		expect(formatDate('2026-12-31T00:00:00Z', 'en-GB')).toBe('31 Dec 2026');
