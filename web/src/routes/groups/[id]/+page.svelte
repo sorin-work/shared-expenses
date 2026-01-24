@@ -69,6 +69,7 @@
 	<div>
 		{#if myBalance !== null}
 			<strong><BalanceBadge amount={myBalance} currency={group.currency} /></strong>
+			<a class="small" href="/groups/{group.id}/balances">See balances</a>
 		{/if}
 	</div>
 	<span class="spacer"></span>

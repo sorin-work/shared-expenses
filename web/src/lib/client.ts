@@ -11,6 +11,7 @@ import type {
 	GroupSummary,
 	Revision,
 	Session,
+	Settlement,
 	User
 } from './types';
 
@@ -55,4 +56,20 @@ export const expenses = {
 	remove: (groupId: string, id: string) =>
 		call<void>(`${g(groupId)}/expenses/${id}`, { method: 'DELETE' }),
 	history: (groupId: string, id: string) => call<Revision[]>(`${g(groupId)}/expenses/${id}/history`)
+};
+
+export const settlements = {
+	list: (groupId: string) => call<Settlement[]>(`${g(groupId)}/settlements`),
+	create: (
+		groupId: string,
+		input: {
+			from_member: string;
+			to_member: string;
+			amount_cents: number;
+			settled_on: string;
+			note: string | null;
+		}
+	) => call<Settlement>(`${g(groupId)}/settlements`, { method: 'POST', body: input }),
+	remove: (groupId: string, id: string) =>
+		call<void>(`${g(groupId)}/settlements/${id}`, { method: 'DELETE' })
 };

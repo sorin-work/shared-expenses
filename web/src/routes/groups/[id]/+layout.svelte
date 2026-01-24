@@ -12,7 +12,10 @@
 	});
 
 	const base = $derived(`/groups/${page.params.id}`);
-	const tabs = $derived([{ href: base, label: 'Expenses' }]);
+	const tabs = $derived([
+		{ href: base, label: 'Expenses' },
+		{ href: `${base}/balances`, label: 'Balances' }
+	]);
 
 	function isCurrent(href: string): boolean {
 		const path = page.url.pathname;
