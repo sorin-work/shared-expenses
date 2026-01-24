@@ -100,6 +100,13 @@
 							</span>
 							<span class="spacer"></span>
 							<Money amount={s.amount_cents} currency={group.currency} />
+							<button
+								class="small"
+								onclick={() =>
+									(form = { from: s.from_member, to: s.to_member, amount: s.amount_cents })}
+							>
+								Record
+							</button>
 						</li>
 					{/each}
 				</ul>
