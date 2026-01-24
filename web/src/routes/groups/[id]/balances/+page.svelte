@@ -6,6 +6,7 @@
 	import { formatDate } from '$lib/dates';
 	import { errorMessage } from '$lib/errors';
 	import { useGroup } from '$lib/group.svelte';
+	import { formatMoney } from '$lib/money';
 	import type { Balances, Settlement } from '$lib/types';
 
 	const ctx = useGroup();
@@ -37,6 +38,17 @@
 	async function saved() {
 		form = null;
 		await load();
+	}
+
+	async function undo(s: Settlement) {
+		const text = `${who(s.from_member)} → ${who(s.to_member)} ${formatMoney(s.amount_cents, group.currency)}`;
+		if (!confirm(`Remove the payment ${text}?`)) return;
+		try {
+			await settlementsApi.remove(group.id, s.id);
+			await load();
+		} catch (err) {
+			error = errorMessage(err);
+		}
 	}
 </script>
 
@@ -121,7 +133,7 @@
 		{:else}
 			<table>
 				<thead>
-					<tr><th>Date</th><th>From</th><th>To</th><th class="num">Amount</th></tr>
+					<tr><th>Date</th><th>From</th><th>To</th><th class="num">Amount</th><th></th></tr>
 				</thead>
 				<tbody>
 					{#each history as s (s.id)}
@@ -133,6 +145,9 @@
 								{#if s.note}<div class="muted small">{s.note}</div>{/if}
 							</td>
 							<td class="num"><Money amount={s.amount_cents} currency={group.currency} /></td>
+							<td class="num">
+								<button class="link-button small" onclick={() => undo(s)}>Remove</button>
+							</td>
 						</tr>
 					{/each}
 				</tbody>
