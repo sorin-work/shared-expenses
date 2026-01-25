@@ -33,6 +33,7 @@
 		load();
 	});
 
+	const largest = $derived(Math.max(1, ...(balances?.balances.map((b) => Math.abs(b.net)) ?? [])));
 	const who = (id: string) => (id === group.my_member_id ? 'You' : ctx.nameOf(id));
 
 	async function saved() {
@@ -78,6 +79,13 @@
 						<span class="name">
 							{b.member_id === group.my_member_id ? 'You' : b.display_name}
 							{#if b.left}<span class="muted small">(left)</span>{/if}
+						</span>
+						<span class="bar" aria-hidden="true">
+							<span
+								class:pos={b.net > 0}
+								class:neg={b.net < 0}
+								style:width="{(Math.abs(b.net) / largest) * 50}%"
+							></span>
 						</span>
 						<Money amount={b.net} currency={group.currency} signed />
 					</li>
@@ -184,6 +192,29 @@
 
 	.name {
 		min-width: 6rem;
+	}
+
+	.bar {
+		flex: 1;
+		position: relative;
+		height: 8px;
+	}
+
+	.bar span {
+		position: absolute;
+		top: 0;
+		height: 100%;
+		border-radius: 4px;
+	}
+
+	.bar .pos {
+		left: 50%;
+		background: var(--positive);
+	}
+
+	.bar .neg {
+		right: 50%;
+		background: var(--negative);
 	}
 
 	.payments {
