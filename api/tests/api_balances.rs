@@ -123,3 +123,42 @@ async fn settlements_are_validated_and_can_be_undone() {
     assert_eq!(feed["items"][0]["kind"], "settlement_deleted");
     assert_eq!(feed["items"][0]["payload"]["from"], "Ben");
 }
+
+#[tokio::test]
+async fn activity_feed_pages_backwards() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Ann").await;
+    let (group, ann) = app.group(&owner, "Flat", "EUR").await;
+    for i in 0..4 {
+        app.equal_expense(&owner, &group, &format!("Thing {i}"), 100, &ann, &[&ann])
+            .await;
+    }
+    let uri = format!("/api/groups/{group}/activity");
+
+    let first = app
+        .get(&format!("{uri}?limit=3"), &owner.token)
+        .await
+        .json();
+    assert_eq!(first["items"].as_array().unwrap().len(), 3);
+    assert_eq!(first["items"][0]["payload"]["description"], "Thing 3");
+    assert_eq!(first["items"][0]["actor_name"], "Ann");
+
+    let before = first["next_before"].as_str().unwrap();
+    let second = app
+        .get(
+            &format!("{uri}?limit=3&before={}", before.replace('+', "%2B")),
+            &owner.token,
+        )
+        .await
+        .json();
+    let kinds: Vec<&str> = second["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["kind"].as_str().unwrap())
+        .collect();
+    assert_eq!(kinds, vec!["expense_added", "group_created"]);
+    assert!(second["next_before"].is_null());
+}
