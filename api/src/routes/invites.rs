@@ -6,10 +6,12 @@ use axum::extract::State;
 use axum::routing::{get, post};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::PgConnection;
 use uuid::Uuid;
 
 use super::members;
+use crate::activity::{self, kind};
 use crate::auth::AuthUser;
 use crate::error::AppError;
 use crate::extract::{Json, Path};
@@ -167,7 +169,7 @@ async fn join(
         }
         // Takes over a placeholder, keeping its expenses and balance.
         (None, Some(claim)) => {
-            sqlx::query_scalar::<_, String>(
+            let placeholder: String = sqlx::query_scalar(
                 "UPDATE members SET user_id = $3
                   WHERE id = $1 AND group_id = $2 AND user_id IS NULL AND left_at IS NULL
                  RETURNING display_name",
@@ -180,12 +182,33 @@ async fn join(
             .ok_or_else(|| {
                 AppError::field("claim_member_id", "is not a placeholder in this group")
             })?;
+            activity::record(
+                &mut *tx,
+                group.id,
+                user.id,
+                kind::MEMBER_JOINED,
+                json!({ "member_id": claim, "name": placeholder, "claimed": true }),
+                now,
+            )
+            .await?;
             claim
         }
         (None, None) => {
             members::ensure_room(&mut *tx, group.id).await?;
             let name = free_name(&mut tx, group.id, &user.name).await?;
-            members::insert_member(&mut *tx, group.id, Some(user.id), &name, "member", now).await?
+            let id =
+                members::insert_member(&mut *tx, group.id, Some(user.id), &name, "member", now)
+                    .await?;
+            activity::record(
+                &mut *tx,
+                group.id,
+                user.id,
+                kind::MEMBER_JOINED,
+                json!({ "member_id": id, "name": name }),
+                now,
+            )
+            .await?;
+            id
         }
     };
     tx.commit().await?;

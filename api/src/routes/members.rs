@@ -4,10 +4,12 @@ use axum::http::StatusCode;
 use axum::routing::{patch, post};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::{PgExecutor, PgPool};
 use uuid::Uuid;
 
 use crate::access;
+use crate::activity::{self, kind};
 use crate::auth::AuthUser;
 use crate::error::AppError;
 use crate::extract::{Json, Path};
@@ -161,6 +163,15 @@ async fn add_placeholder(
     ensure_name_available(&mut *tx, group_id, &name, None).await?;
     let now = Utc::now();
     let id = insert_member(&mut *tx, group_id, None, &name, "member", now).await?;
+    activity::record(
+        &mut *tx,
+        group_id,
+        auth.id,
+        kind::MEMBER_ADDED,
+        json!({ "member_id": id, "name": name }),
+        now,
+    )
+    .await?;
     tx.commit().await?;
 
     let member = list_members(&state.pool, group_id)
@@ -198,6 +209,15 @@ async fn rename(
             .bind(&name)
             .execute(&mut *tx)
             .await?;
+        activity::record(
+            &mut *tx,
+            group_id,
+            auth.id,
+            kind::MEMBER_RENAMED,
+            json!({ "member_id": target.id, "from": target.display_name, "to": name }),
+            Utc::now(),
+        )
+        .await?;
         tx.commit().await?;
     }
 

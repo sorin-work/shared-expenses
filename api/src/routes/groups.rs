@@ -5,11 +5,13 @@ use axum::routing::{get, post};
 use chrono::{DateTime, Utc};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::PgConnection;
 use uuid::Uuid;
 
 use super::members::{self, MemberView};
 use crate::access;
+use crate::activity::{self, kind};
 use crate::auth::AuthUser;
 use crate::domain::currency;
 use crate::error::{AppError, is_unique_violation};
@@ -33,6 +35,7 @@ pub struct GroupSummary {
     pub my_member_id: Uuid,
     /// The signed-in user's net balance in this group.
     pub my_balance: i64,
+    pub last_activity_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -132,6 +135,15 @@ pub async fn insert_group(
         at,
     )
     .await?;
+    activity::record(
+        &mut *conn,
+        group.id,
+        owner_id,
+        kind::GROUP_CREATED,
+        json!({ "name": group.name, "currency": group.currency }),
+        at,
+    )
+    .await?;
     Ok((group, member_id))
 }
 
@@ -153,10 +165,12 @@ async fn list(
                               WHERE t.from_member = m.id AND t.deleted_at IS NULL), 0)
                  - COALESCE((SELECT sum(t.amount_cents) FROM settlements t
                               WHERE t.to_member = m.id AND t.deleted_at IS NULL), 0)
-                )::bigint AS my_balance
+                )::bigint AS my_balance,
+                COALESCE((SELECT max(a.created_at) FROM activity a WHERE a.group_id = g.id),
+                         g.created_at) AS last_activity_at
            FROM groups g
            JOIN members m ON m.group_id = g.id AND m.user_id = $1 AND m.left_at IS NULL
-          ORDER BY g.created_at",
+          ORDER BY last_activity_at DESC, g.name",
     )
     .bind(auth.id)
     .fetch_all(&state.pool)
@@ -264,6 +278,15 @@ async fn update(
             .bind(&name)
             .execute(&mut *tx)
             .await?;
+        activity::record(
+            &mut *tx,
+            group_id,
+            auth.id,
+            kind::GROUP_RENAMED,
+            json!({ "from": current.name, "to": name }),
+            Utc::now(),
+        )
+        .await?;
     }
     tx.commit().await?;
 

@@ -201,6 +201,16 @@ async fn edits_are_kept_in_the_history() {
     assert_eq!(revisions[1]["action"], "updated");
     assert_eq!(revisions[1]["snapshot"]["notes"], "forgot the wine");
     assert_eq!(revisions[1]["changed_by_name"], "Owner");
+
+    let feed = app
+        .get(&format!("/api/groups/{group}/activity"), &owner.token)
+        .await
+        .json();
+    assert_eq!(feed["items"][0]["kind"], "expense_updated");
+    assert_eq!(
+        feed["items"][0]["payload"]["changes"],
+        json!(["amount", "notes", "split"])
+    );
 }
 
 #[tokio::test]

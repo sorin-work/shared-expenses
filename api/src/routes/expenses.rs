@@ -6,11 +6,13 @@ use axum::http::StatusCode;
 use axum::routing::get;
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::{PgConnection, PgExecutor};
 use uuid::Uuid;
 
 use super::members::{self, MemberView};
 use crate::access;
+use crate::activity::{self, kind};
 use crate::auth::AuthUser;
 use crate::domain::category;
 use crate::domain::split::{self, Participant, SplitError, SplitMethod};
@@ -361,6 +363,20 @@ pub async fn insert_expense(
 
     let expense = load_expense(conn, group_id, id).await?;
     record_revision(conn, &expense, "created", actor, at).await?;
+    activity::record(
+        &mut *conn,
+        group_id,
+        actor,
+        kind::EXPENSE_ADDED,
+        json!({
+            "expense_id": id,
+            "description": prepared.description,
+            "amount_cents": prepared.amount,
+            "paid_by": prepared.paid_by_name,
+        }),
+        at,
+    )
+    .await?;
     Ok(expense)
 }
 
@@ -549,6 +565,20 @@ async fn update(
 
     let after = load_expense(&mut tx, group_id, expense_id).await?;
     record_revision(&mut tx, &after, "updated", auth.id, now).await?;
+    activity::record(
+        &mut *tx,
+        group_id,
+        auth.id,
+        kind::EXPENSE_UPDATED,
+        json!({
+            "expense_id": expense_id,
+            "description": after.description,
+            "amount_cents": after.amount_cents,
+            "changes": changed,
+        }),
+        now,
+    )
+    .await?;
     tx.commit().await?;
     Ok(Json(after))
 }
@@ -569,6 +599,19 @@ async fn remove(
         .execute(&mut *tx)
         .await?;
     record_revision(&mut tx, &expense, "deleted", auth.id, now).await?;
+    activity::record(
+        &mut *tx,
+        group_id,
+        auth.id,
+        kind::EXPENSE_DELETED,
+        json!({
+            "expense_id": expense_id,
+            "description": expense.description,
+            "amount_cents": expense.amount_cents,
+        }),
+        now,
+    )
+    .await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }

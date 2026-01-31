@@ -5,6 +5,7 @@ use tower_http::trace::TraceLayer;
 use crate::error::AppError;
 use crate::state::AppState;
 
+pub mod activity;
 pub mod auth;
 pub mod balances;
 pub mod expenses;
@@ -22,6 +23,7 @@ pub fn router(state: AppState) -> Router {
         .nest("/groups/{group_id}/expenses", expenses::router())
         .nest("/groups/{group_id}/settlements", settlements::router())
         .route("/groups/{group_id}/balances", get(balances::show))
+        .route("/groups/{group_id}/activity", get(activity::list))
         .nest("/invites", invites::router());
 
     Router::new()

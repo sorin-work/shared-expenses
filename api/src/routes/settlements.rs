@@ -6,12 +6,14 @@ use axum::http::StatusCode;
 use axum::routing::{delete, get};
 use chrono::{DateTime, Days, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::PgConnection;
 use uuid::Uuid;
 
 use super::expenses::MAX_AMOUNT;
 use super::members;
 use crate::access;
+use crate::activity::{self, kind};
 use crate::auth::AuthUser;
 use crate::error::AppError;
 use crate::extract::{Json, Path};
@@ -120,6 +122,20 @@ pub async fn insert_settlement(
     .fetch_one(&mut *conn)
     .await?;
 
+    activity::record(
+        &mut *conn,
+        group_id,
+        actor,
+        kind::SETTLEMENT_ADDED,
+        json!({
+            "settlement_id": settlement.id,
+            "from": from_name,
+            "to": to_name,
+            "amount_cents": settlement.amount_cents,
+        }),
+        at,
+    )
+    .await?;
     Ok(settlement)
 }
 
@@ -161,17 +177,33 @@ async fn remove(
     access::membership(&state.pool, group_id, auth.id).await?;
     let mut tx = state.pool.begin().await?;
 
-    let deleted = sqlx::query(
-        "UPDATE settlements SET deleted_at = now()
-          WHERE id = $1 AND group_id = $2 AND deleted_at IS NULL",
+    let deleted: Option<(i64, Option<String>, Option<String>)> = sqlx::query_as(
+        "UPDATE settlements t SET deleted_at = now()
+           FROM members f, members r
+          WHERE t.id = $1 AND t.group_id = $2 AND t.deleted_at IS NULL
+            AND f.id = t.from_member AND r.id = t.to_member
+         RETURNING t.amount_cents, f.display_name, r.display_name",
     )
     .bind(settlement_id)
     .bind(group_id)
-    .execute(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
-    if deleted.rows_affected() == 0 {
-        return Err(AppError::NotFound("settlement"));
-    }
+    let (amount, from, to) = deleted.ok_or(AppError::NotFound("settlement"))?;
+
+    activity::record(
+        &mut *tx,
+        group_id,
+        auth.id,
+        kind::SETTLEMENT_DELETED,
+        json!({
+            "settlement_id": settlement_id,
+            "from": from,
+            "to": to,
+            "amount_cents": amount,
+        }),
+        Utc::now(),
+    )
+    .await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }

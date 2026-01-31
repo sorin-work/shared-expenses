@@ -115,4 +115,11 @@ async fn settlements_are_validated_and_can_be_undone() {
             .unwrap()
             .is_empty()
     );
+
+    let feed = app
+        .get(&format!("/api/groups/{group}/activity"), &owner.token)
+        .await
+        .json();
+    assert_eq!(feed["items"][0]["kind"], "settlement_deleted");
+    assert_eq!(feed["items"][0]["payload"]["from"], "Ben");
 }
