@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeActivity } from './activity';
+import { activityLink, describeActivity } from './activity';
 import type { ActivityEntry } from './types';
 
 function entry(kind: string, payload: Record<string, unknown>, actor = 'Maya'): ActivityEntry {
@@ -63,5 +63,16 @@ describe('describeActivity', () => {
 	it('falls back for unknown kinds and deleted users', () => {
 		const e = { ...entry('mystery', {}), actor_name: null };
 		expect(d(e)).toBe('Someone made a change');
+	});
+});
+
+describe('activityLink', () => {
+	it('links expenses unless they were deleted', () => {
+		expect(activityLink(entry('expense_added', { expense_id: 'e1' }), 'g1')).toBe(
+			'/groups/g1/expenses/e1'
+		);
+		expect(activityLink(entry('expense_deleted', { expense_id: 'e1' }), 'g1')).toBeNull();
+		expect(activityLink(entry('settlement_added', {}), 'g1')).toBe('/groups/g1/balances');
+		expect(activityLink(entry('member_added', {}), 'g1')).toBeNull();
 	});
 });
