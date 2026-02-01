@@ -14,7 +14,8 @@
 	const base = $derived(`/groups/${page.params.id}`);
 	const tabs = $derived([
 		{ href: base, label: 'Expenses' },
-		{ href: `${base}/balances`, label: 'Balances' }
+		{ href: `${base}/balances`, label: 'Balances' },
+		{ href: `${base}/activity`, label: 'Activity' }
 	]);
 
 	function isCurrent(href: string): boolean {

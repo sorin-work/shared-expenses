@@ -127,3 +127,17 @@ export interface Balances {
 	balances: BalanceRow[];
 	suggestions: Suggestion[];
 }
+
+export interface ActivityEntry {
+	id: string;
+	kind: string;
+	payload: Record<string, unknown>;
+	actor_id: string | null;
+	actor_name: string | null;
+	created_at: string;
+}
+
+export interface ActivityFeed {
+	items: ActivityEntry[];
+	next_before: string | null;
+}
