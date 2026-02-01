@@ -31,6 +31,7 @@ export interface GroupSummary {
 	member_count: number;
 	my_member_id: string;
 	my_balance: number;
+	last_activity_at: string;
 	created_at: string;
 }
 

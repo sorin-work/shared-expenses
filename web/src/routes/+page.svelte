@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { groups as groupsApi } from '$lib/client';
 	import BalanceBadge from '$lib/components/BalanceBadge.svelte';
+	import { timeAgo } from '$lib/dates';
 	import { errorMessage, fieldErrors } from '$lib/errors';
 	import { CURRENCIES } from '$lib/money';
 	import type { GroupSummary } from '$lib/types';
@@ -107,7 +108,9 @@
 						<strong>{group.name}</strong>
 						<div class="muted small">
 							{group.member_count}
-							{group.member_count === 1 ? 'person' : 'people'} · {group.currency}
+							{group.member_count === 1 ? 'person' : 'people'} · {group.currency} · active {timeAgo(
+								group.last_activity_at
+							)}
 						</div>
 					</div>
 					<BalanceBadge amount={group.my_balance} currency={group.currency} />
