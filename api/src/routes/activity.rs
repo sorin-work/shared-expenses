@@ -42,7 +42,7 @@ pub async fn list(
     access::membership(&state.pool, group_id, auth.id).await?;
     let limit = query.limit.unwrap_or(30).clamp(1, 100);
 
-    let items = sqlx::query_as::<_, Entry>(
+    let mut items = sqlx::query_as::<_, Entry>(
         "SELECT a.id, a.kind, a.payload, a.actor_id, u.name AS actor_name, a.created_at
            FROM activity a
            LEFT JOIN users u ON u.id = a.actor_id
@@ -52,11 +52,13 @@ pub async fn list(
     )
     .bind(group_id)
     .bind(query.before)
-    .bind(limit)
+    .bind(limit + 1)
     .fetch_all(&state.pool)
     .await?;
 
-    let next_before = (items.len() as i64 == limit)
+    let has_more = items.len() as i64 > limit;
+    items.truncate(limit as usize);
+    let next_before = has_more
         .then(|| items.last().map(|e| e.created_at))
         .flatten();
     Ok(Json(Feed { items, next_before }))

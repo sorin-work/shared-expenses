@@ -161,4 +161,12 @@ async fn activity_feed_pages_backwards() {
         .collect();
     assert_eq!(kinds, vec!["expense_added", "group_created"]);
     assert!(second["next_before"].is_null());
+
+    // Exactly one full page: no cursor to an empty next page.
+    let all = app
+        .get(&format!("{uri}?limit=5"), &owner.token)
+        .await
+        .json();
+    assert_eq!(all["items"].as_array().unwrap().len(), 5);
+    assert!(all["next_before"].is_null());
 }
