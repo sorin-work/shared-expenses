@@ -4,6 +4,7 @@
 	import Money from '$lib/components/Money.svelte';
 	import SettlementForm from '$lib/components/SettlementForm.svelte';
 	import { formatDate } from '$lib/dates';
+	import { saveBlob } from '$lib/download';
 	import { errorMessage } from '$lib/errors';
 	import { useGroup } from '$lib/group.svelte';
 	import { formatMoney } from '$lib/money';
@@ -16,6 +17,7 @@
 	let history = $state<Settlement[]>([]);
 	let error = $state('');
 	let form = $state<{ from: string; to: string; amount: number } | null>(null);
+	let exporting = $state(false);
 
 	async function load() {
 		try {
@@ -49,6 +51,18 @@
 			await load();
 		} catch (err) {
 			error = errorMessage(err);
+		}
+	}
+
+	async function exportCsv() {
+		exporting = true;
+		try {
+			const { blob, filename } = await groups.exportCsv(group.id);
+			saveBlob(blob, filename);
+		} catch (err) {
+			error = errorMessage(err);
+		} finally {
+			exporting = false;
 		}
 	}
 </script>
@@ -135,7 +149,13 @@
 	</div>
 
 	<section class="card payments">
-		<h2>Payments</h2>
+		<div class="row">
+			<h2>Payments</h2>
+			<span class="spacer"></span>
+			<button class="small" onclick={exportCsv} disabled={exporting}>
+				{exporting ? 'Exporting…' : 'Export CSV'}
+			</button>
+		</div>
 		{#if history.length === 0}
 			<p class="muted">No payments recorded yet.</p>
 		{:else}

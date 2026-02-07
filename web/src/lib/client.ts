@@ -1,6 +1,6 @@
 // Typed calls to the API, using the signed-in session.
 
-import { query, request, type ApiOptions } from './api';
+import { query, rawRequest, request, type ApiOptions } from './api';
 import { session } from './session.svelte';
 import type {
 	ActivityFeed,
@@ -37,7 +37,14 @@ export const groups = {
 	get: (id: string) => call<GroupDetail>(g(id)),
 	balances: (id: string) => call<Balances>(`${g(id)}/balances`),
 	activity: (id: string, before?: string | null) =>
-		call<ActivityFeed>(`${g(id)}/activity${query({ before, limit: 30 })}`)
+		call<ActivityFeed>(`${g(id)}/activity${query({ before, limit: 30 })}`),
+	/** Downloads the CSV export through the API so the token is sent. */
+	async exportCsv(id: string): Promise<{ blob: Blob; filename: string }> {
+		const response = await rawRequest(`${g(id)}/export.csv`, { token: session.token });
+		const disposition = response.headers.get('Content-Disposition') ?? '';
+		const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'expenses.csv';
+		return { blob: await response.blob(), filename };
+	}
 };
 
 export interface ExpenseFilters {
