@@ -9,6 +9,7 @@ pub mod activity;
 pub mod auth;
 pub mod balances;
 pub mod expenses;
+pub mod export;
 pub mod groups;
 pub mod health;
 pub mod invites;
@@ -24,6 +25,7 @@ pub fn router(state: AppState) -> Router {
         .nest("/groups/{group_id}/settlements", settlements::router())
         .route("/groups/{group_id}/balances", get(balances::show))
         .route("/groups/{group_id}/activity", get(activity::list))
+        .route("/groups/{group_id}/export.csv", get(export::csv))
         .nest("/invites", invites::router());
 
     Router::new()

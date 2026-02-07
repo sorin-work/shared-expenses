@@ -5,5 +5,6 @@
 pub mod balance;
 pub mod category;
 pub mod currency;
+pub mod money;
 pub mod simplify;
 pub mod split;

@@ -4,6 +4,7 @@ pub mod access;
 pub mod activity;
 pub mod auth;
 pub mod config;
+pub mod csv;
 pub mod domain;
 pub mod error;
 pub mod extract;
