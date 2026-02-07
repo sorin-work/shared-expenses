@@ -184,3 +184,16 @@ pub async fn csv(
         out.finish(),
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::file_name;
+
+    #[test]
+    fn builds_file_names_from_group_names() {
+        assert_eq!(file_name("Flat 4B"), "flat-4b-expenses.csv");
+        assert_eq!(file_name("  Lisbon '26!! "), "lisbon-26-expenses.csv");
+        assert_eq!(file_name("Ünïcode"), "n-code-expenses.csv");
+        assert_eq!(file_name("***"), "expenses.csv");
+    }
+}

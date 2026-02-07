@@ -17,3 +17,33 @@ pub fn format_minor(amount: i64, decimals: u8) -> String {
         width = usize::from(decimals)
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn formats_two_decimal_amounts() {
+        assert_eq!(format_minor(1234, 2), "12.34");
+        assert_eq!(format_minor(5, 2), "0.05");
+        assert_eq!(format_minor(100, 2), "1.00");
+        assert_eq!(format_minor(0, 2), "0.00");
+    }
+
+    #[test]
+    fn formats_negative_amounts() {
+        assert_eq!(format_minor(-1234, 2), "-12.34");
+        assert_eq!(format_minor(-5, 2), "-0.05");
+    }
+
+    #[test]
+    fn formats_zero_decimal_currencies() {
+        assert_eq!(format_minor(1500, 0), "1500");
+        assert_eq!(format_minor(-7, 0), "-7");
+    }
+
+    #[test]
+    fn handles_extreme_values() {
+        assert_eq!(format_minor(i64::MIN, 2), "-92233720368547758.08");
+    }
+}
