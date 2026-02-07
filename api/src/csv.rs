@@ -47,3 +47,41 @@ fn push_field(out: &mut String, value: &str) {
     out.push_str(&value.replace('"', "\"\""));
     out.push('"');
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn line(fields: &[&str]) -> String {
+        let mut w = CsvWriter::new();
+        w.row(fields);
+        w.finish()
+    }
+
+    #[test]
+    fn writes_plain_fields() {
+        assert_eq!(line(&["a", "b c", "12.50"]), "a,b c,12.50\r\n");
+    }
+
+    #[test]
+    fn quotes_fields_with_separators_and_quotes() {
+        assert_eq!(
+            line(&["a,b", "say \"hi\"", "two\nlines"]),
+            "\"a,b\",\"say \"\"hi\"\"\",\"two\nlines\"\r\n"
+        );
+    }
+
+    #[test]
+    fn neutralises_formulas() {
+        assert_eq!(
+            line(&["=SUM(A1)", "@cmd", "+1"]),
+            "\"'=SUM(A1)\",\"'@cmd\",\"'+1\"\r\n"
+        );
+        assert_eq!(line(&["-HYPERLINK()"]), "\"'-HYPERLINK()\"\r\n");
+    }
+
+    #[test]
+    fn empty_fields_stay_empty() {
+        assert_eq!(line(&["", "x", ""]), ",x,\r\n");
+    }
+}
