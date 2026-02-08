@@ -20,7 +20,13 @@ async fn main() {
 fn init_tracing() {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("shared_expenses_api=info,tower_http=info"));
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    let json = std::env::var("LOG_FORMAT").is_ok_and(|f| f.eq_ignore_ascii_case("json"));
+    let builder = tracing_subscriber::fmt().with_env_filter(filter);
+    if json {
+        builder.json().init();
+    } else {
+        builder.init();
+    }
 }
 
 /// Postgres may still be starting when the API comes up, so retry for a bit.

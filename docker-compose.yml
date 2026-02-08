@@ -24,6 +24,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-local-development-secret-change-me-0123456789}
       TOKEN_TTL_HOURS: ${TOKEN_TTL_HOURS:-168}
       RUST_LOG: ${RUST_LOG:-shared_expenses_api=info,tower_http=info}
+      LOG_FORMAT: ${LOG_FORMAT:-text}
     depends_on:
       db:
         condition: service_healthy
