@@ -11,8 +11,23 @@ jobs:
     defaults:
       run:
         working-directory: api
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: shared_expenses
+          POSTGRES_PASSWORD: shared_expenses
+          POSTGRES_DB: shared_expenses_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U shared_expenses"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     env:
       CARGO_TERM_COLOR: always
+      TEST_DATABASE_URL: postgres://shared_expenses:shared_expenses@localhost:5432/shared_expenses_test
     steps:
       - uses: actions/checkout@v4
 

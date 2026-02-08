@@ -75,6 +75,9 @@ npm run check   # svelte-check / TypeScript
 npm test        # vitest
 ```
 
+CI runs all of the above, with a Postgres service for the database tests,
+and builds the Docker images.
+
 ## License
 
 MIT
