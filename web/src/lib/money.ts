@@ -32,7 +32,7 @@ export function minorUnits(currency: string): number {
 
 /**
  * Parses an amount typed by a person into minor units. Accepts "12", "12.5",
- * "1,234.56" and a leading currency symbol. Returns null for
+ * "12,50", "1 234.56" and a leading currency symbol. Returns null for
  * anything else, including more decimals than the currency has.
  */
 export function parseAmount(input: string, currency: string): number | null {
@@ -43,7 +43,14 @@ export function parseAmount(input: string, currency: string): number | null {
 		.replace(/[\s']/g, '');
 	if (cleaned === '') return null;
 
-	const normalised = cleaned.replace(/,/g, '');
+	// A comma is a decimal separator when it's the only separator and is
+	// followed by one or two digits ("12,50"); otherwise it groups thousands.
+	let normalised = cleaned;
+	if (/^\d+,\d{1,2}$/.test(normalised)) {
+		normalised = normalised.replace(',', '.');
+	} else {
+		normalised = normalised.replace(/,(?=\d{3}(\D|$))/g, '');
+	}
 
 	const match = /^(\d+)(?:\.(\d*))?$/.exec(normalised);
 	if (!match) return null;

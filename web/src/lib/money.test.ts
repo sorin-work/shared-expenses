@@ -10,6 +10,11 @@ describe('parseAmount', () => {
 		expect(parseAmount('.5', 'EUR')).toBeNull();
 	});
 
+	it('accepts a decimal comma', () => {
+		expect(parseAmount('12,50', 'EUR')).toBe(1250);
+		expect(parseAmount('3,5', 'EUR')).toBe(350);
+	});
+
 	it('ignores thousands separators and spaces', () => {
 		expect(parseAmount('1,234.56', 'USD')).toBe(123456);
 		expect(parseAmount('1 234.56', 'EUR')).toBe(123456);
