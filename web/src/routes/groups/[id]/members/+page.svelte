@@ -13,11 +13,22 @@
 	let newName = $state('');
 	let addError = $state('');
 	let error = $state('');
+	let copied = $state(false);
 	let editing = $state<string | null>(null);
 	let editName = $state('');
 	let editError = $state('');
 
 	const current = $derived(group.members.filter((m) => !m.left_at));
+
+	async function copy() {
+		try {
+			await navigator.clipboard.writeText(inviteUrl);
+			copied = true;
+			setTimeout(() => (copied = false), 2000);
+		} catch {
+			error = "Couldn't copy the link. Select it and copy it by hand.";
+		}
+	}
 
 	async function add(event: SubmitEvent) {
 		event.preventDefault();
@@ -63,6 +74,7 @@
 			aria-label="Invite link"
 			onfocus={(e) => e.currentTarget.select()}
 		/>
+		<button onclick={copy}>{copied ? 'Copied!' : 'Copy'}</button>
 	</div>
 </section>
 
