@@ -67,11 +67,14 @@
 		padding: 0.5rem 0.85rem;
 		color: var(--muted);
 		text-decoration: none;
+		border-bottom: 2px solid transparent;
+		margin-bottom: -1px;
 		white-space: nowrap;
 	}
 
 	.tabs a[aria-current='page'] {
 		color: var(--text);
+		border-bottom-color: var(--accent);
 		font-weight: 600;
 	}
 </style>
