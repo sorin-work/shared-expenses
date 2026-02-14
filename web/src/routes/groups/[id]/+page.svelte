@@ -105,7 +105,9 @@
 			<p>No expenses match these filters.</p>
 		{:else}
 			<p>No expenses yet.</p>
-			<p class="small">Add the first one to get started.</p>
+			<p class="small">
+				Add the first one, or <a href="/groups/{group.id}/members">invite people</a> to the group.
+			</p>
 		{/if}
 	</div>
 {:else}

@@ -36,7 +36,7 @@
 		fields = {};
 		try {
 			const group = await groupsApi.create(name, currency);
-			await goto(`/groups/${group.id}`);
+			await goto(`/groups/${group.id}/members?new=1`);
 		} catch (err) {
 			error = errorMessage(err);
 			fields = fieldErrors(err);

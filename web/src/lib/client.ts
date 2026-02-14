@@ -10,6 +10,7 @@ import type {
 	ExpensePage,
 	GroupDetail,
 	GroupSummary,
+	Member,
 	Revision,
 	Session,
 	Settlement,
@@ -45,6 +46,13 @@ export const groups = {
 		const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'expenses.csv';
 		return { blob: await response.blob(), filename };
 	}
+};
+
+export const members = {
+	add: (groupId: string, display_name: string) =>
+		call<Member>(`${g(groupId)}/members`, { method: 'POST', body: { display_name } }),
+	rename: (groupId: string, memberId: string, display_name: string) =>
+		call<Member>(`${g(groupId)}/members/${memberId}`, { method: 'PATCH', body: { display_name } })
 };
 
 export interface ExpenseFilters {
