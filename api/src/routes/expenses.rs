@@ -440,7 +440,7 @@ async fn list(
 ) -> Result<Json<ExpensePage>, AppError> {
     access::membership(&state.pool, group_id, auth.id).await?;
 
-    let limit = query.limit.unwrap_or(50).max(1);
+    let limit = query.limit.unwrap_or(50).clamp(1, 200);
     let offset = query.offset.unwrap_or(0).max(0);
     let category = query.category.filter(|c| !c.is_empty());
     let search = query
