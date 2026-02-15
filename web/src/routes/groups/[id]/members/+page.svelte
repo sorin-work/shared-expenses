@@ -111,7 +111,11 @@
 						<strong>{m.display_name}</strong>
 						{#if m.id === group.my_member_id}<span class="muted">(you)</span>{/if}
 						<div class="muted small">
-							{m.role === 'owner' ? 'Owner' : 'Member'}
+							{m.role === 'owner'
+								? 'Owner'
+								: m.has_account
+									? 'Member'
+									: 'Placeholder, no account yet'}
 						</div>
 					</div>
 					{#if canRename(m)}
