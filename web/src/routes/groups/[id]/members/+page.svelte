@@ -8,6 +8,7 @@
 
 	const ctx = useGroup();
 	const group = $derived(ctx.group!);
+	const isNew = $derived(page.url.searchParams.has('new'));
 	const inviteUrl = $derived(`${page.url.origin}/join/${group.invite_code}`);
 
 	let newName = $state('');
@@ -72,6 +73,13 @@
 
 	const canRename = (m: Member) => ctx.isOwner || !m.has_account || m.id === group.my_member_id;
 </script>
+
+{#if isNew}
+	<p class="notice">
+		Your group is ready. Share the invite link below, or add people who don't use the app as
+		placeholders.
+	</p>
+{/if}
 
 <section class="card">
 	<h2>Invite link</h2>
@@ -141,6 +149,10 @@
 	section + section,
 	.alert {
 		margin-top: 1rem;
+	}
+
+	.notice {
+		margin-bottom: 1rem;
 	}
 
 	.invite {
