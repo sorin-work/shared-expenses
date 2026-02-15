@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ApiError, request } from './api';
+import { ApiError, query, request } from './api';
 
 function fakeFetch(status: number, body?: unknown, contentType = 'application/json') {
 	return vi.fn(
@@ -73,5 +73,12 @@ describe('request', () => {
 		const err = await failure(request('/api/groups', { fetch }));
 		expect(err.status).toBe(0);
 		expect(err.code).toBe('network_error');
+	});
+});
+
+describe('query', () => {
+	it('skips empty values', () => {
+		expect(query({ q: 'rent', category: '', member: null, limit: 20 })).toBe('?q=rent&limit=20');
+		expect(query({})).toBe('');
 	});
 });
