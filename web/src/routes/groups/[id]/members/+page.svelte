@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { members } from '$lib/client';
+	import { groups, members } from '$lib/client';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import { errorMessage, fieldErrors } from '$lib/errors';
 	import { useGroup } from '$lib/group.svelte';
@@ -27,6 +27,16 @@
 			setTimeout(() => (copied = false), 2000);
 		} catch {
 			error = "Couldn't copy the link. Select it and copy it by hand.";
+		}
+	}
+
+	async function regenerate() {
+		if (!confirm('Make a new invite link? The old one will stop working.')) return;
+		try {
+			await groups.regenerateInvite(group.id);
+			await ctx.reload();
+		} catch (err) {
+			error = errorMessage(err);
 		}
 	}
 
@@ -75,6 +85,9 @@
 			onfocus={(e) => e.currentTarget.select()}
 		/>
 		<button onclick={copy}>{copied ? 'Copied!' : 'Copy'}</button>
+		{#if ctx.isOwner}
+			<button class="link-button small" onclick={regenerate}>New link</button>
+		{/if}
 	</div>
 </section>
 

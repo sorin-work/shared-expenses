@@ -36,6 +36,8 @@ export const groups = {
 	create: (name: string, currency: string) =>
 		call<GroupDetail>('/api/groups', { method: 'POST', body: { name, currency } }),
 	get: (id: string) => call<GroupDetail>(g(id)),
+	regenerateInvite: (id: string) =>
+		call<{ invite_code: string }>(`${g(id)}/invite`, { method: 'POST' }),
 	balances: (id: string) => call<Balances>(`${g(id)}/balances`),
 	activity: (id: string, before?: string | null) =>
 		call<ActivityFeed>(`${g(id)}/activity${query({ before, limit: 30 })}`),
