@@ -2,7 +2,7 @@ FROM rust:1-slim-trixie AS build
 WORKDIR /src
 
 # Build the dependencies first so they are cached between source changes.
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml Cargo.lock build.rs ./
 RUN mkdir src \
   && echo 'fn main() {}' > src/main.rs \
   && touch src/lib.rs \
