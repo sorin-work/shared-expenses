@@ -283,3 +283,28 @@ async fn placeholder_names_must_be_unique() {
         .await;
     assert_eq!(response.status, StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+#[tokio::test]
+async fn groups_with_expenses_can_be_deleted() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let (group, me) = app.group(&owner, "Old trip", "EUR").await;
+    let tom = app.placeholder(&owner, &group, "Tom").await;
+    app.equal_expense(&owner, &group, "Dinner", 4_000, &me, &[&me, &tom])
+        .await;
+    app.post(
+        &format!("/api/groups/{group}/settlements"),
+        &owner.token,
+        json!({ "from_member": tom, "to_member": me, "amount_cents": 1_000, "settled_on": common::today() }),
+    )
+    .await;
+
+    let deleted = app
+        .delete(&format!("/api/groups/{group}"), &owner.token)
+        .await;
+    assert_eq!(deleted.status, StatusCode::NO_CONTENT, "{}", deleted.text);
+    let gone = app.get(&format!("/api/groups/{group}"), &owner.token).await;
+    assert_eq!(gone.status, StatusCode::NOT_FOUND);
+}
