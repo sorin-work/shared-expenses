@@ -286,6 +286,13 @@ async fn listing_filters_and_paginates() {
         .json();
     assert_eq!(search["total"], 2);
 
+    // % is matched literally, not as a wildcard.
+    let percent = app
+        .get(&format!("{uri}?q=50%25"), &owner.token)
+        .await
+        .json();
+    assert_eq!(percent["total"], 1);
+
     let for_b = app
         .get(&format!("{uri}?member={b}"), &owner.token)
         .await

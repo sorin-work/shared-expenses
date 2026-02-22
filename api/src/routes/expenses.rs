@@ -432,6 +432,15 @@ pub struct ExpensePage {
     pub total: i64,
 }
 
+/// Escapes LIKE wildcards so a search for "50%" means a literal "50%".
+fn like_pattern(search: &str) -> String {
+    let escaped = search
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_");
+    format!("%{escaped}%")
+}
+
 async fn list(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -448,7 +457,7 @@ async fn list(
         .as_deref()
         .map(str::trim)
         .filter(|q| !q.is_empty())
-        .map(|q| format!("%{q}%"));
+        .map(like_pattern);
 
     const FILTER: &str = "e.group_id = $1 AND e.deleted_at IS NULL
            AND ($2::text IS NULL OR e.category = $2)
@@ -731,6 +740,12 @@ mod tests {
         after.shares[1].1 = 700;
         after.shares[1].2 = 700;
         assert_eq!(changed_fields(&before, &after), vec!["split"]);
+    }
+
+    #[test]
+    fn like_wildcards_are_escaped() {
+        assert_eq!(like_pattern("50%_off"), "%50\\%\\_off%");
+        assert_eq!(like_pattern("a\\b"), "%a\\\\b%");
     }
 
     #[test]
