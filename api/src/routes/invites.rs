@@ -60,7 +60,7 @@ pub struct Joined {
 
 async fn find_group(db: &mut PgConnection, code: &str) -> Result<InviteGroup, AppError> {
     sqlx::query_as::<_, InviteGroup>("SELECT id, name, currency FROM groups WHERE invite_code = $1")
-        .bind(code)
+        .bind(code.trim().to_ascii_lowercase())
         .fetch_optional(db)
         .await?
         .ok_or(AppError::NotFound("invite"))

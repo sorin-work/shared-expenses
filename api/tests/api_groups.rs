@@ -144,7 +144,10 @@ async fn joining_with_the_invite_link() {
         .to_string();
 
     let preview = app
-        .get(&format!("/api/invites/{code}"), &friend.token)
+        .get(
+            &format!("/api/invites/{}", code.to_uppercase()),
+            &friend.token,
+        )
         .await;
     assert_eq!(preview.status, StatusCode::OK);
     assert_eq!(preview.json()["name"], "Holiday");
