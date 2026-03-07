@@ -10,6 +10,7 @@ import type {
 	ExpensePage,
 	GroupDetail,
 	GroupSummary,
+	InvitePreview,
 	Member,
 	Revision,
 	Session,
@@ -92,4 +93,13 @@ export const settlements = {
 	) => call<Settlement>(`${g(groupId)}/settlements`, { method: 'POST', body: input }),
 	remove: (groupId: string, id: string) =>
 		call<void>(`${g(groupId)}/settlements/${id}`, { method: 'DELETE' })
+};
+
+export const invites = {
+	preview: (code: string) => call<InvitePreview>(`/api/invites/${encodeURIComponent(code)}`),
+	join: (code: string, claim_member_id: string | null) =>
+		call<{ group_id: string; member_id: string }>(`/api/invites/${encodeURIComponent(code)}/join`, {
+			method: 'POST',
+			body: { claim_member_id }
+		})
 };

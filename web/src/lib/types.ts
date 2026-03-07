@@ -142,3 +142,12 @@ export interface ActivityFeed {
 	items: ActivityEntry[];
 	next_before: string | null;
 }
+
+export interface InvitePreview {
+	group_id: string;
+	name: string;
+	currency: string;
+	member_count: number;
+	already_member: boolean;
+	placeholders: { id: string; display_name: string }[];
+}
