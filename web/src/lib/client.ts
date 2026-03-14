@@ -30,7 +30,9 @@ export const auth = {
 	signup: (email: string, name: string, password: string) =>
 		request<Session>('/api/auth/signup', { method: 'POST', body: { email, name, password } }),
 	me: () => call<User>('/api/auth/me'),
-	updateProfile: (name: string) => call<User>('/api/auth/me', { method: 'PATCH', body: { name } })
+	updateProfile: (name: string) => call<User>('/api/auth/me', { method: 'PATCH', body: { name } }),
+	changePassword: (current_password: string, new_password: string) =>
+		call<void>('/api/auth/password', { method: 'POST', body: { current_password, new_password } })
 };
 
 export const groups = {
