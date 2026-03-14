@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { groups } from '$lib/client';
 	import { errorMessage, fieldErrors } from '$lib/errors';
 	import { useGroup } from '$lib/group.svelte';
@@ -29,6 +30,19 @@
 			fields = fieldErrors(err);
 		}
 	}
+
+	async function deleteGroup() {
+		const answer = prompt(
+			`This deletes "${group.name}" with all its expenses for everyone. Type the group name to confirm.`
+		);
+		if (answer?.trim() !== group.name) return;
+		try {
+			await groups.remove(group.id);
+			await goto('/');
+		} catch (err) {
+			error = errorMessage(err);
+		}
+	}
 </script>
 
 {#if error}<p class="alert" role="alert">{error}</p>{/if}
@@ -55,10 +69,20 @@
 			{#if saved}<span class="positive small">Saved</span>{/if}
 		</div>
 	</form>
+
+	<section class="card danger-zone">
+		<h2>Delete group</h2>
+		<p class="muted">Removes the group, its expenses and payments for every member.</p>
+		<button class="danger" onclick={deleteGroup}>Delete this group</button>
+	</section>
 {/if}
 
 <style>
 	form .row {
+		margin-top: 1rem;
+	}
+
+	.danger-zone {
 		margin-top: 1rem;
 	}
 

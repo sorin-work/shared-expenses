@@ -39,6 +39,7 @@ export const groups = {
 	get: (id: string) => call<GroupDetail>(g(id)),
 	update: (id: string, changes: { name?: string; currency?: string }) =>
 		call<GroupDetail>(g(id), { method: 'PATCH', body: changes }),
+	remove: (id: string) => call<void>(g(id), { method: 'DELETE' }),
 	regenerateInvite: (id: string) =>
 		call<{ invite_code: string }>(`${g(id)}/invite`, { method: 'POST' }),
 	balances: (id: string) => call<Balances>(`${g(id)}/balances`),
