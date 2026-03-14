@@ -16,7 +16,8 @@
 		{ href: base, label: 'Expenses' },
 		{ href: `${base}/balances`, label: 'Balances' },
 		{ href: `${base}/activity`, label: 'Activity' },
-		{ href: `${base}/members`, label: 'People' }
+		{ href: `${base}/members`, label: 'People' },
+		{ href: `${base}/settings`, label: 'Settings' }
 	]);
 
 	function isCurrent(href: string): boolean {

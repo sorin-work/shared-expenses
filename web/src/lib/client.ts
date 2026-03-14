@@ -37,6 +37,8 @@ export const groups = {
 	create: (name: string, currency: string) =>
 		call<GroupDetail>('/api/groups', { method: 'POST', body: { name, currency } }),
 	get: (id: string) => call<GroupDetail>(g(id)),
+	update: (id: string, changes: { name?: string; currency?: string }) =>
+		call<GroupDetail>(g(id), { method: 'PATCH', body: changes }),
 	regenerateInvite: (id: string) =>
 		call<{ invite_code: string }>(`${g(id)}/invite`, { method: 'POST' }),
 	balances: (id: string) => call<Balances>(`${g(id)}/balances`),
