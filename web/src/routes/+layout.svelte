@@ -29,7 +29,7 @@
 		<a class="brand" href="/">Shared expenses</a>
 		{#if session.user}
 			<span class="spacer"></span>
-			<span class="who">{session.user.name}</span>
+			<a href="/settings" class="who">{session.user.name}</a>
 			<button class="link-button" onclick={signOut}>Sign out</button>
 		{/if}
 	</nav>

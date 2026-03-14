@@ -29,7 +29,8 @@ export const auth = {
 		request<Session>('/api/auth/login', { method: 'POST', body: { email, password } }),
 	signup: (email: string, name: string, password: string) =>
 		request<Session>('/api/auth/signup', { method: 'POST', body: { email, name, password } }),
-	me: () => call<User>('/api/auth/me')
+	me: () => call<User>('/api/auth/me'),
+	updateProfile: (name: string) => call<User>('/api/auth/me', { method: 'PATCH', body: { name } })
 };
 
 export const groups = {
