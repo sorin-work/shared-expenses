@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { groups } from '$lib/client';
+	import { groups, members } from '$lib/client';
 	import { errorMessage, fieldErrors } from '$lib/errors';
 	import { useGroup } from '$lib/group.svelte';
 	import { CURRENCIES } from '$lib/money';
@@ -43,6 +43,16 @@
 			error = errorMessage(err);
 		}
 	}
+
+	async function leave() {
+		if (!confirm(`Leave "${group.name}"? You need to be settled up first.`)) return;
+		try {
+			await members.remove(group.id, group.my_member_id);
+			await goto('/');
+		} catch (err) {
+			error = errorMessage(err);
+		}
+	}
 </script>
 
 {#if error}<p class="alert" role="alert">{error}</p>{/if}
@@ -74,6 +84,14 @@
 		<h2>Delete group</h2>
 		<p class="muted">Removes the group, its expenses and payments for every member.</p>
 		<button class="danger" onclick={deleteGroup}>Delete this group</button>
+	</section>
+{:else}
+	<section class="card">
+		<h2>Leave group</h2>
+		<p class="muted">
+			You can leave once your balance is zero. Your past expenses stay in the group's history.
+		</p>
+		<button class="danger" onclick={leave}>Leave this group</button>
 	</section>
 {/if}
 

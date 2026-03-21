@@ -61,7 +61,9 @@ export const members = {
 	add: (groupId: string, display_name: string) =>
 		call<Member>(`${g(groupId)}/members`, { method: 'POST', body: { display_name } }),
 	rename: (groupId: string, memberId: string, display_name: string) =>
-		call<Member>(`${g(groupId)}/members/${memberId}`, { method: 'PATCH', body: { display_name } })
+		call<Member>(`${g(groupId)}/members/${memberId}`, { method: 'PATCH', body: { display_name } }),
+	remove: (groupId: string, memberId: string) =>
+		call<void>(`${g(groupId)}/members/${memberId}`, { method: 'DELETE' })
 };
 
 export interface ExpenseFilters {

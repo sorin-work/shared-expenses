@@ -20,6 +20,7 @@
 	let editError = $state('');
 
 	const current = $derived(group.members.filter((m) => !m.left_at));
+	const former = $derived(group.members.filter((m) => m.left_at));
 
 	async function copy() {
 		try {
@@ -71,7 +72,19 @@
 		}
 	}
 
+	async function remove(m: Member) {
+		if (!confirm(`Remove ${m.display_name} from the group?`)) return;
+		error = '';
+		try {
+			await members.remove(group.id, m.id);
+			await ctx.reload();
+		} catch (err) {
+			error = errorMessage(err);
+		}
+	}
+
 	const canRename = (m: Member) => ctx.isOwner || !m.has_account || m.id === group.my_member_id;
+	const canRemove = (m: Member) => ctx.isOwner && m.role !== 'owner';
 </script>
 
 {#if isNew}
@@ -129,6 +142,9 @@
 					{#if canRename(m)}
 						<button class="link-button small" onclick={() => startEdit(m)}>Rename</button>
 					{/if}
+					{#if canRemove(m)}
+						<button class="link-button small danger" onclick={() => remove(m)}>Remove</button>
+					{/if}
 				{/if}
 			</li>
 		{/each}
@@ -143,6 +159,15 @@
 		{#if addError}<p class="field-error">{addError}</p>{/if}
 		<p class="muted small">They can claim their place later when they join with the invite link.</p>
 	</form>
+
+	{#if former.length}
+		<h3 class="former">Former members</h3>
+		<ul class="members">
+			{#each former as m (m.id)}
+				<li class="muted"><Avatar name={m.display_name} size={26} /> {m.display_name}</li>
+			{/each}
+		</ul>
+	{/if}
 </section>
 
 <style>
@@ -195,5 +220,10 @@
 
 	.add input {
 		flex: 1;
+	}
+
+	.former {
+		margin-top: 1.5rem;
+		font-size: 0.95rem;
 	}
 </style>
