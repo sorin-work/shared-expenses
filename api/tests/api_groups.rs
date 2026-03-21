@@ -288,6 +288,84 @@ async fn placeholder_names_must_be_unique() {
 }
 
 #[tokio::test]
+async fn members_with_an_open_balance_cannot_be_removed() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let (group, me) = app.group(&owner, "Flat", "EUR").await;
+    let unused = app.placeholder(&owner, &group, "Unused").await;
+    let tom = app.placeholder(&owner, &group, "Tom").await;
+    app.equal_expense(&owner, &group, "Beer", 1_000, &me, &[&me, &tom])
+        .await;
+
+    // Never used anywhere: removed completely.
+    let removed = app
+        .delete(
+            &format!("/api/groups/{group}/members/{unused}"),
+            &owner.token,
+        )
+        .await;
+    assert_eq!(removed.status, StatusCode::NO_CONTENT);
+
+    let blocked = app
+        .delete(&format!("/api/groups/{group}/members/{tom}"), &owner.token)
+        .await;
+    assert_eq!(blocked.status, StatusCode::CONFLICT);
+
+    app.post(
+        &format!("/api/groups/{group}/settlements"),
+        &owner.token,
+        json!({ "from_member": tom, "to_member": me, "amount_cents": 500, "settled_on": common::today() }),
+    )
+    .await;
+    let left = app
+        .delete(&format!("/api/groups/{group}/members/{tom}"), &owner.token)
+        .await;
+    assert_eq!(left.status, StatusCode::NO_CONTENT);
+
+    // Tom is kept for the history but marked as gone.
+    let detail = app
+        .get(&format!("/api/groups/{group}"), &owner.token)
+        .await
+        .json();
+    let tom_row = detail["members"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == tom.as_str())
+        .unwrap();
+    assert!(tom_row["left_at"].is_string());
+
+    // ...and can't be used in new expenses.
+    let response = app
+        .post(
+            &format!("/api/groups/{group}/expenses"),
+            &owner.token,
+            json!({
+                "description": "More beer", "amount_cents": 500, "paid_by": me,
+                "split_method": "equal", "spent_on": common::today(),
+                "splits": [{ "member_id": tom }],
+            }),
+        )
+        .await;
+    assert_eq!(response.status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn the_owner_cannot_leave() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let (group, me) = app.group(&owner, "Flat", "EUR").await;
+    let response = app
+        .delete(&format!("/api/groups/{group}/members/{me}"), &owner.token)
+        .await;
+    assert_eq!(response.status, StatusCode::CONFLICT);
+}
+
+#[tokio::test]
 async fn groups_with_expenses_can_be_deleted() {
     let Some(app) = common::app().await else {
         return;

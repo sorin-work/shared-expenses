@@ -21,7 +21,7 @@ pub const MAX_MEMBERS: i64 = 50;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", post(add_placeholder))
-        .route("/{member_id}", patch(rename))
+        .route("/{member_id}", patch(rename).delete(remove))
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -75,6 +75,27 @@ pub async fn insert_member(
     Ok(id)
 }
 
+/// The member's net balance: what they paid minus their shares, adjusted
+/// for settlements.
+pub async fn member_balance(db: impl PgExecutor<'_>, member_id: Uuid) -> Result<i64, AppError> {
+    Ok(sqlx::query_scalar(
+        "SELECT (
+              COALESCE((SELECT sum(amount_cents) FROM expenses
+                         WHERE paid_by = $1 AND deleted_at IS NULL), 0)
+            - COALESCE((SELECT sum(s.amount_cents) FROM expense_shares s
+                          JOIN expenses e ON e.id = s.expense_id
+                         WHERE s.member_id = $1 AND e.deleted_at IS NULL), 0)
+            + COALESCE((SELECT sum(amount_cents) FROM settlements
+                         WHERE from_member = $1 AND deleted_at IS NULL), 0)
+            - COALESCE((SELECT sum(amount_cents) FROM settlements
+                         WHERE to_member = $1 AND deleted_at IS NULL), 0)
+         )::bigint",
+    )
+    .bind(member_id)
+    .fetch_one(db)
+    .await?)
+}
+
 /// Fails if another active member already uses this name.
 pub async fn ensure_name_available(
     db: impl PgExecutor<'_>,
@@ -124,7 +145,7 @@ async fn find_member(
     member_id: Uuid,
 ) -> Result<MemberRow, AppError> {
     sqlx::query_as::<_, MemberRow>(
-        "SELECT id, user_id, display_name FROM members
+        "SELECT id, user_id, display_name, role FROM members
           WHERE id = $1 AND group_id = $2 AND left_at IS NULL",
     )
     .bind(member_id)
@@ -139,6 +160,7 @@ struct MemberRow {
     id: Uuid,
     user_id: Option<Uuid>,
     display_name: String,
+    role: String,
 }
 
 #[derive(Deserialize)]
@@ -227,4 +249,65 @@ async fn rename(
         .find(|m| m.id == target.id)
         .ok_or(AppError::NotFound("member"))?;
     Ok(Json(member))
+}
+
+async fn remove(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((group_id, member_id)): Path<(Uuid, Uuid)>,
+) -> Result<StatusCode, AppError> {
+    let me = access::membership(&state.pool, group_id, auth.id).await?;
+    let target = find_member(&state.pool, group_id, member_id).await?;
+    let leaving = target.id == me.member_id;
+
+    if target.role == "owner" {
+        return Err(AppError::Conflict(
+            "the owner can't leave the group; delete the group instead".into(),
+        ));
+    }
+    if !leaving && !me.is_owner() {
+        return Err(AppError::Forbidden(
+            "only the group owner can remove members",
+        ));
+    }
+
+    let mut tx = state.pool.begin().await?;
+    let referenced: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM expenses WHERE paid_by = $1)
+             OR EXISTS (SELECT 1 FROM expense_shares WHERE member_id = $1)
+             OR EXISTS (SELECT 1 FROM settlements WHERE from_member = $1 OR to_member = $1)",
+    )
+    .bind(target.id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if referenced {
+        if member_balance(&mut *tx, target.id).await? != 0 {
+            return Err(AppError::Conflict(format!(
+                "{} still has an open balance; settle up first",
+                target.display_name
+            )));
+        }
+        sqlx::query("UPDATE members SET left_at = now() WHERE id = $1")
+            .bind(target.id)
+            .execute(&mut *tx)
+            .await?;
+    } else {
+        sqlx::query("DELETE FROM members WHERE id = $1")
+            .bind(target.id)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    activity::record(
+        &mut *tx,
+        group_id,
+        auth.id,
+        kind::MEMBER_REMOVED,
+        json!({ "member_id": target.id, "name": target.display_name, "left": leaving }),
+        Utc::now(),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
 }

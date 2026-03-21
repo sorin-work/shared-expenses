@@ -161,11 +161,31 @@ async fn join(
     let now = Utc::now();
     let member_id = match (existing, input.claim_member_id) {
         // Already in the group: joining again is a no-op.
-        (Some((id, _)), _) => {
+        (Some((id, false)), _) => {
             return Ok(Json(Joined {
                 group_id: group.id,
                 member_id: id,
             }));
+        }
+        // Left earlier and comes back with their old history.
+        (Some((id, true)), _) => {
+            members::ensure_room(&mut *tx, group.id).await?;
+            let name = free_name(&mut tx, group.id, &user.name).await?;
+            sqlx::query("UPDATE members SET left_at = NULL, display_name = $2 WHERE id = $1")
+                .bind(id)
+                .bind(&name)
+                .execute(&mut *tx)
+                .await?;
+            activity::record(
+                &mut *tx,
+                group.id,
+                user.id,
+                kind::MEMBER_JOINED,
+                json!({ "member_id": id, "name": name }),
+                now,
+            )
+            .await?;
+            id
         }
         // Takes over a placeholder, keeping its expenses and balance.
         (None, Some(claim)) => {
