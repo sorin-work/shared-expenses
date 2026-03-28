@@ -25,6 +25,24 @@
 	background: var(--bg);
 }
 
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #12151b;
+		--surface: #1b2029;
+		--surface-2: #232a35;
+		--text: #e6e9ef;
+		--muted: #9aa3b2;
+		--border: #2e3644;
+		--accent: #2dd4bf;
+		--accent-text: #06201d;
+		--positive: #4ade80;
+		--negative: #fb923c;
+		--danger: #f87171;
+		--shadow: none;
+		color-scheme: dark;
+	}
+}
+
 * {
 	box-sizing: border-box;
 }
