@@ -32,8 +32,10 @@ impl CsvWriter {
 }
 
 fn push_field(out: &mut String, value: &str) {
-    // Spreadsheet apps run cells starting with these as formulas.
-    let formula = value.starts_with(['=', '+', '-', '@', '\t', '\r']);
+    // Spreadsheet apps run cells starting with these as formulas. Plain
+    // numbers like -12.50 are left alone so they stay numeric.
+    let formula = value.starts_with(['=', '+', '@', '\t', '\r'])
+        || (value.starts_with('-') && value.parse::<f64>().is_err());
     let needs_quotes = formula || value.contains([',', '"', '\n', '\r']);
 
     if !needs_quotes {
@@ -78,6 +80,11 @@ mod tests {
             "\"'=SUM(A1)\",\"'@cmd\",\"'+1\"\r\n"
         );
         assert_eq!(line(&["-HYPERLINK()"]), "\"'-HYPERLINK()\"\r\n");
+    }
+
+    #[test]
+    fn keeps_negative_numbers_numeric() {
+        assert_eq!(line(&["-12.50", "-3"]), "-12.50,-3\r\n");
     }
 
     #[test]

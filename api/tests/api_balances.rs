@@ -125,6 +125,58 @@ async fn settlements_are_validated_and_can_be_undone() {
 }
 
 #[tokio::test]
+async fn csv_export_has_a_column_per_member() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Ann").await;
+    let (group, ann) = app.group(&owner, "Flat 4B", "EUR").await;
+    let ben = app.placeholder(&owner, &group, "Ben").await;
+    app.equal_expense(&owner, &group, "=cmd()", 1_001, &ann, &[&ann, &ben])
+        .await;
+    app.post(
+        &format!("/api/groups/{group}/settlements"),
+        &owner.token,
+        json!({ "from_member": ben, "to_member": ann, "amount_cents": 500, "settled_on": common::today() }),
+    )
+    .await;
+
+    let response = app
+        .get(&format!("/api/groups/{group}/export.csv"), &owner.token)
+        .await;
+    assert_eq!(response.status, StatusCode::OK);
+    assert!(
+        response.headers["content-type"]
+            .to_str()
+            .unwrap()
+            .starts_with("text/csv")
+    );
+    assert!(
+        response.headers["content-disposition"]
+            .to_str()
+            .unwrap()
+            .contains("flat-4b-expenses.csv")
+    );
+
+    let lines: Vec<&str> = response.text.lines().collect();
+    assert_eq!(
+        lines[0],
+        "Date,Type,Description,Category,Paid by,Amount (EUR),Ann,Ben"
+    );
+    assert!(
+        lines[1].contains(",expense,\"'=cmd()\",general,Ann,10.01,5.00,-5.00"),
+        "{}",
+        lines[1]
+    );
+    assert!(
+        lines[2].contains(",settlement,Settlement,,Ben,5.00,-5.00,5.00"),
+        "{}",
+        lines[2]
+    );
+    assert_eq!(lines[3], ",balance,Balance,,,,0.00,0.00");
+}
+
+#[tokio::test]
 async fn activity_feed_pages_backwards() {
     let Some(app) = common::app().await else {
         return;
