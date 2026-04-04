@@ -326,6 +326,61 @@ async fn flat_share(
     )
     .await?;
 
+    // Corrected after the receipt turned up, so the history has an edit.
+    let plant = ctx
+        .expense(
+            demo.id,
+            6,
+            "Plants for the balcony",
+            "household",
+            3_000,
+            alex,
+            Split::Equal(&everyone),
+        )
+        .await?;
+    let mut fixed = expense_input(
+        "Plants for the balcony",
+        "household",
+        3_460,
+        alex,
+        day(today, 6),
+        Split::Equal(&everyone),
+    );
+    fixed.notes = Some("Receipt says 34.60, not 30".into());
+    let at = evening(day(today, 5), 40);
+    expenses::update_expense(ctx.conn, group.id, plant, maya.id, &fixed, at).await?;
+
+    // Entered twice by accident and removed again.
+    let dup = ctx
+        .expense(
+            jonas.id,
+            4,
+            "Groceries",
+            "groceries",
+            4_210,
+            jonas_m,
+            Split::Equal(&everyone),
+        )
+        .await?;
+    expenses::delete_expense(
+        ctx.conn,
+        group.id,
+        dup,
+        jonas.id,
+        evening(day(today, 4), 50),
+    )
+    .await?;
+    ctx.expense(
+        jonas.id,
+        4,
+        "Groceries",
+        "groceries",
+        4_210,
+        jonas_m,
+        Split::Equal(&everyone),
+    )
+    .await?;
+
     // Everyone pays Alex back for rent most months; the last month is
     // still open, which is what the settle up suggestions are about.
     for (i, days_ago) in [116, 87, 58].into_iter().enumerate() {
