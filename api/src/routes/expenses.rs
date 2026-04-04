@@ -522,31 +522,31 @@ async fn show(
     Ok(Json(load_expense(&mut conn, group_id, expense_id).await?))
 }
 
-async fn update(
-    State(state): State<AppState>,
-    auth: AuthUser,
-    Path((group_id, expense_id)): Path<(Uuid, Uuid)>,
-    Json(input): Json<ExpenseInput>,
-) -> Result<Json<ExpenseView>, AppError> {
-    access::membership(&state.pool, group_id, auth.id).await?;
-    let now = Utc::now();
-    let mut tx = state.pool.begin().await?;
-
+/// Applies an edit: new shares, a revision and a feed entry. Returns the
+/// expense unchanged when the edit doesn't change anything.
+pub async fn update_expense(
+    conn: &mut PgConnection,
+    group_id: Uuid,
+    expense_id: Uuid,
+    actor: Uuid,
+    input: &ExpenseInput,
+    at: DateTime<Utc>,
+) -> Result<ExpenseView, AppError> {
     // Lock the row so two edits at the same time get consecutive revisions.
     sqlx::query("SELECT 1 FROM expenses WHERE id = $1 AND group_id = $2 FOR UPDATE")
         .bind(expense_id)
         .bind(group_id)
-        .execute(&mut *tx)
+        .execute(&mut *conn)
         .await?;
-    let before = load_expense(&mut tx, group_id, expense_id).await?;
+    let before = load_expense(conn, group_id, expense_id).await?;
 
     let mut involved: Vec<Uuid> = before.shares.iter().map(|s| s.member_id).collect();
     involved.push(before.paid_by);
-    let prepared = prepare(&mut *tx, group_id, &input, &involved, now.date_naive()).await?;
+    let prepared = prepare(&mut *conn, group_id, input, &involved, at.date_naive()).await?;
 
     let changed = changed_fields(&before, &prepared);
     if changed.is_empty() {
-        return Ok(Json(before));
+        return Ok(before);
     }
 
     sqlx::query(
@@ -563,21 +563,21 @@ async fn update(
     .bind(&prepared.category)
     .bind(prepared.spent_on)
     .bind(&prepared.notes)
-    .bind(now)
-    .execute(&mut *tx)
+    .bind(at)
+    .execute(&mut *conn)
     .await?;
     sqlx::query("DELETE FROM expense_shares WHERE expense_id = $1")
         .bind(expense_id)
-        .execute(&mut *tx)
+        .execute(&mut *conn)
         .await?;
-    insert_shares(&mut tx, expense_id, &prepared).await?;
+    insert_shares(conn, expense_id, &prepared).await?;
 
-    let after = load_expense(&mut tx, group_id, expense_id).await?;
-    record_revision(&mut tx, &after, "updated", auth.id, now).await?;
+    let after = load_expense(conn, group_id, expense_id).await?;
+    record_revision(conn, &after, "updated", actor, at).await?;
     activity::record(
-        &mut *tx,
+        &mut *conn,
         group_id,
-        auth.id,
+        actor,
         kind::EXPENSE_UPDATED,
         json!({
             "expense_id": expense_id,
@@ -585,11 +585,55 @@ async fn update(
             "amount_cents": after.amount_cents,
             "changes": changed,
         }),
-        now,
+        at,
     )
     .await?;
+    Ok(after)
+}
+
+/// Soft deletes an expense, keeping its history.
+pub async fn delete_expense(
+    conn: &mut PgConnection,
+    group_id: Uuid,
+    expense_id: Uuid,
+    actor: Uuid,
+    at: DateTime<Utc>,
+) -> Result<(), AppError> {
+    let expense = load_expense(conn, group_id, expense_id).await?;
+    sqlx::query("UPDATE expenses SET deleted_at = $2 WHERE id = $1")
+        .bind(expense_id)
+        .bind(at)
+        .execute(&mut *conn)
+        .await?;
+    record_revision(conn, &expense, "deleted", actor, at).await?;
+    activity::record(
+        &mut *conn,
+        group_id,
+        actor,
+        kind::EXPENSE_DELETED,
+        json!({
+            "expense_id": expense_id,
+            "description": expense.description,
+            "amount_cents": expense.amount_cents,
+        }),
+        at,
+    )
+    .await?;
+    Ok(())
+}
+
+async fn update(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((group_id, expense_id)): Path<(Uuid, Uuid)>,
+    Json(input): Json<ExpenseInput>,
+) -> Result<Json<ExpenseView>, AppError> {
+    access::membership(&state.pool, group_id, auth.id).await?;
+    let mut tx = state.pool.begin().await?;
+    let expense =
+        update_expense(&mut tx, group_id, expense_id, auth.id, &input, Utc::now()).await?;
     tx.commit().await?;
-    Ok(Json(after))
+    Ok(Json(expense))
 }
 
 async fn remove(
@@ -598,29 +642,8 @@ async fn remove(
     Path((group_id, expense_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, AppError> {
     access::membership(&state.pool, group_id, auth.id).await?;
-    let now = Utc::now();
     let mut tx = state.pool.begin().await?;
-
-    let expense = load_expense(&mut tx, group_id, expense_id).await?;
-    sqlx::query("UPDATE expenses SET deleted_at = $2 WHERE id = $1")
-        .bind(expense_id)
-        .bind(now)
-        .execute(&mut *tx)
-        .await?;
-    record_revision(&mut tx, &expense, "deleted", auth.id, now).await?;
-    activity::record(
-        &mut *tx,
-        group_id,
-        auth.id,
-        kind::EXPENSE_DELETED,
-        json!({
-            "expense_id": expense_id,
-            "description": expense.description,
-            "amount_cents": expense.amount_cents,
-        }),
-        now,
-    )
-    .await?;
+    delete_expense(&mut tx, group_id, expense_id, auth.id, Utc::now()).await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
