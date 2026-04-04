@@ -53,7 +53,17 @@ cp .env.example .env   # optional, the defaults work
 docker compose up --build
 ```
 
-Then open http://localhost:5187 and create an account.
+Then open http://localhost:5187 and sign in with the demo account:
+
+- **Email:** `demo@example.com`
+- **Password:** `demo-password`
+
+The demo user (Alex Morgan) gets three groups: a four person flat share with
+four months of rent, bills and groceries, a long weekend in Lisbon using every
+split method, and a household shared 60/40 with a partner. The other people in
+those groups can sign in too (`maya@example.com`, `jonas@example.com`,
+`sam@example.com`, same password), which is handy for trying invites and
+placeholders. Set `SEED_DEMO=false` to start with an empty database.
 
 | Service | Host port             | Notes                                               |
 | ------- | --------------------- | --------------------------------------------------- |
@@ -79,6 +89,7 @@ API (listens on :4407 and applies migrations on start):
 cd api
 export DATABASE_URL=postgres://shared_expenses:shared_expenses@localhost:5447/shared_expenses
 export JWT_SECRET=local-development-secret-change-me-0123456789
+export SEED_DEMO=true
 cargo run
 ```
 
