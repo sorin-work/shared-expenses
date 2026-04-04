@@ -4,7 +4,7 @@ use std::time::Duration;
 use shared_expenses_api::auth::token::TokenKeys;
 use shared_expenses_api::config::Config;
 use shared_expenses_api::state::AppState;
-use shared_expenses_api::{MIGRATOR, connect, router};
+use shared_expenses_api::{MIGRATOR, connect, router, seed};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
@@ -52,6 +52,10 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let pool = connect_with_retry(&config.database_url).await?;
     MIGRATOR.run(&pool).await?;
     tracing::info!("migrations applied");
+
+    if config.seed_demo {
+        seed::run(&pool).await?;
+    }
 
     let state = AppState::new(
         pool,

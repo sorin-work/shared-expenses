@@ -25,6 +25,8 @@ services:
       TOKEN_TTL_HOURS: ${TOKEN_TTL_HOURS:-168}
       RUST_LOG: ${RUST_LOG:-shared_expenses_api=info,tower_http=info}
       LOG_FORMAT: ${LOG_FORMAT:-text}
+      # Creates demo@example.com / demo-password with sample groups.
+      SEED_DEMO: ${SEED_DEMO:-true}
     depends_on:
       db:
         condition: service_healthy

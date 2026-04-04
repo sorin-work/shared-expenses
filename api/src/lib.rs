@@ -9,6 +9,7 @@ pub mod domain;
 pub mod error;
 pub mod extract;
 pub mod routes;
+pub mod seed;
 pub mod state;
 pub mod validate;
 
