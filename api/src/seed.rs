@@ -33,10 +33,13 @@ pub async fn run(pool: &PgPool) -> Result<(), AppError> {
     let demo = create_user(pool, DEMO_EMAIL, "Alex Morgan", &hash).await?;
     let maya = create_user(pool, "maya@example.com", "Maya", &hash).await?;
     let jonas = create_user(pool, "jonas@example.com", "Jonas", &hash).await?;
+    let sam = create_user(pool, "sam@example.com", "Sam", &hash).await?;
 
     let today = Utc::now().date_naive();
     let mut tx = pool.begin().await?;
     flat_share(&mut tx, today, &demo, &maya, &jonas).await?;
+    trip(&mut tx, today, &demo, &maya).await?;
+    household(&mut tx, today, &demo, &sam).await?;
     tx.commit().await?;
 
     tracing::info!(email = DEMO_EMAIL, "demo data created");
@@ -65,6 +68,8 @@ struct Ctx<'a> {
 enum Split<'a> {
     Equal(&'a [Uuid]),
     Exact(&'a [(Uuid, i64)]),
+    Percent(&'a [(Uuid, i64)]),
+    Shares(&'a [(Uuid, i64)]),
 }
 
 impl Ctx<'_> {
@@ -142,6 +147,8 @@ fn expense_input(
                 .collect(),
         ),
         Split::Exact(v) => ("exact", to_inputs(v)),
+        Split::Percent(v) => ("percent", to_inputs(v)),
+        Split::Shares(v) => ("shares", to_inputs(v)),
     };
     ExpenseInput {
         description: description.to_string(),
@@ -337,5 +344,266 @@ async fn flat_share(
         ctx.settle(demo.id, days_ago - 2, priya, alex, 60_000, Some("Cash"))
             .await?;
     }
+    Ok(())
+}
+
+async fn trip(
+    conn: &mut PgConnection,
+    today: NaiveDate,
+    demo: &User,
+    maya: &User,
+) -> Result<(), AppError> {
+    let created = evening(day(today, 58), 12);
+    let (group, alex) = insert_group(
+        conn,
+        demo.id,
+        &demo.name,
+        "Lisbon long weekend",
+        "EUR",
+        created,
+    )
+    .await?;
+    let maya_m = insert_member(
+        &mut *conn,
+        group.id,
+        Some(maya.id),
+        &maya.name,
+        "member",
+        created,
+    )
+    .await?;
+    let tom = insert_member(&mut *conn, group.id, None, "Tom", "member", created).await?;
+    let lena = insert_member(&mut *conn, group.id, None, "Lena", "member", created).await?;
+    let all = [alex, maya_m, tom, lena];
+
+    let mut ctx = Ctx {
+        conn,
+        group_id: group.id,
+        today,
+        counter: 0,
+    };
+    ctx.expense(
+        demo.id,
+        56,
+        "Flights BER-LIS",
+        "travel",
+        68_396,
+        alex,
+        Split::Exact(&[
+            (alex, 17_099),
+            (maya_m, 17_099),
+            (tom, 17_099),
+            (lena, 17_099),
+        ]),
+    )
+    .await?;
+    // Tom and Lena shared the big bedroom: two shares for the couple.
+    ctx.expense(
+        maya.id,
+        55,
+        "Apartment in Alfama (3 nights)",
+        "accommodation",
+        51_000,
+        maya_m,
+        Split::Shares(&[(alex, 1), (maya_m, 1), (tom, 1), (lena, 1)]),
+    )
+    .await?;
+    ctx.expense(
+        demo.id,
+        42,
+        "Airport taxi",
+        "transport",
+        3_150,
+        alex,
+        Split::Equal(&all),
+    )
+    .await?;
+    ctx.expense(
+        maya.id,
+        42,
+        "Dinner at Taberna da Rua",
+        "dining",
+        11_780,
+        maya_m,
+        Split::Equal(&all),
+    )
+    .await?;
+    ctx.expense(
+        demo.id,
+        41,
+        "Tram 28 day passes",
+        "transport",
+        2_560,
+        alex,
+        Split::Equal(&all),
+    )
+    .await?;
+    ctx.expense(
+        demo.id,
+        41,
+        "Pastéis de nata",
+        "dining",
+        1_290,
+        alex,
+        Split::Equal(&[alex, maya_m, lena]),
+    )
+    .await?;
+    ctx.expense(
+        maya.id,
+        41,
+        "Oceanário tickets",
+        "entertainment",
+        8_800,
+        maya_m,
+        Split::Percent(&[(alex, 2_500), (maya_m, 2_500), (tom, 2_500), (lena, 2_500)]),
+    )
+    .await?;
+    ctx.expense(
+        demo.id,
+        40,
+        "Sintra day trip",
+        "travel",
+        9_640,
+        alex,
+        Split::Shares(&[(alex, 1), (maya_m, 1), (tom, 2)]),
+    )
+    .await?;
+    ctx.expense(
+        maya.id,
+        40,
+        "Seafood dinner",
+        "dining",
+        19_335,
+        maya_m,
+        Split::Equal(&all),
+    )
+    .await?;
+    ctx.expense(
+        demo.id,
+        39,
+        "Groceries for the apartment",
+        "groceries",
+        3_412,
+        alex,
+        Split::Equal(&all),
+    )
+    .await?;
+
+    ctx.settle(
+        demo.id,
+        30,
+        lena,
+        alex,
+        15_000,
+        Some("Lena paid part on Revolut"),
+    )
+    .await?;
+    Ok(())
+}
+
+async fn household(
+    conn: &mut PgConnection,
+    today: NaiveDate,
+    demo: &User,
+    sam: &User,
+) -> Result<(), AppError> {
+    let created = evening(day(today, 70), 30);
+    let (group, alex) =
+        insert_group(conn, demo.id, &demo.name, "Home with Sam", "GBP", created).await?;
+    let sam_m = insert_member(
+        &mut *conn,
+        group.id,
+        Some(sam.id),
+        &sam.name,
+        "member",
+        created,
+    )
+    .await?;
+    // Alex earns more, so shared bills are split 60/40.
+    let sixty_forty = [(alex, 6_000), (sam_m, 4_000)];
+
+    let mut ctx = Ctx {
+        conn,
+        group_id: group.id,
+        today,
+        counter: 0,
+    };
+    for (i, days_ago) in [65, 35, 5].into_iter().enumerate() {
+        ctx.expense(
+            demo.id,
+            days_ago,
+            "Council tax",
+            "utilities",
+            16_200,
+            alex,
+            Split::Percent(&sixty_forty),
+        )
+        .await?;
+        let energy = [11_245, 12_890, 14_310][i];
+        ctx.expense(
+            sam.id,
+            days_ago - 3,
+            "Gas & electric",
+            "utilities",
+            energy,
+            sam_m,
+            Split::Percent(&sixty_forty),
+        )
+        .await?;
+    }
+    let shops = [
+        (62, "Tesco", 7_643, sam_m),
+        (55, "Sainsbury's", 5_419, alex),
+        (47, "Tesco", 8_120, sam_m),
+        (33, "Farmers market", 2_850, alex),
+        (26, "Tesco", 6_975, sam_m),
+        (12, "Sainsbury's", 9_302, alex),
+        (3, "Tesco", 7_188, sam_m),
+    ];
+    for (days_ago, description, amount, payer) in shops {
+        let actor = if payer == alex { demo.id } else { sam.id };
+        ctx.expense(
+            actor,
+            days_ago,
+            description,
+            "groceries",
+            amount,
+            payer,
+            Split::Equal(&[alex, sam_m]),
+        )
+        .await?;
+    }
+    ctx.expense(
+        sam.id,
+        44,
+        "Thai takeaway",
+        "dining",
+        3_460,
+        sam_m,
+        Split::Equal(&[alex, sam_m]),
+    )
+    .await?;
+    ctx.expense(
+        demo.id,
+        19,
+        "Birthday present for Mum",
+        "gifts",
+        4_500,
+        alex,
+        Split::Exact(&[(alex, 2_250), (sam_m, 2_250)]),
+    )
+    .await?;
+    ctx.expense(
+        sam.id,
+        8,
+        "Cinema",
+        "entertainment",
+        2_680,
+        sam_m,
+        Split::Equal(&[alex, sam_m]),
+    )
+    .await?;
+
+    ctx.settle(sam.id, 34, sam_m, alex, 8_000, None).await?;
     Ok(())
 }

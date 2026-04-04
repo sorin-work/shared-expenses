@@ -27,7 +27,7 @@ async fn demo_data_is_consistent() {
 
     let groups = app.get("/api/groups", &token).await.json();
     let groups = groups.as_array().unwrap();
-    assert_eq!(groups.len(), 1);
+    assert_eq!(groups.len(), 3);
 
     for group in groups {
         let id = group["id"].as_str().unwrap();
