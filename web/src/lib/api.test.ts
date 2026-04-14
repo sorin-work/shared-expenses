@@ -74,6 +74,22 @@ describe('request', () => {
 		expect(err.status).toBe(0);
 		expect(err.code).toBe('network_error');
 	});
+
+	it('calls onUnauthorized for an expired session', async () => {
+		const onUnauthorized = vi.fn();
+		const fetch = fakeFetch(401, {
+			error: { code: 'unauthorized', message: 'you need to sign in' }
+		});
+		await request('/api/groups', { token: 'old', fetch, onUnauthorized }).catch(() => {});
+		expect(onUnauthorized).toHaveBeenCalledOnce();
+	});
+
+	it('does not call onUnauthorized for a failed login', async () => {
+		const onUnauthorized = vi.fn();
+		const fetch = fakeFetch(401, { error: { code: 'invalid_credentials', message: 'wrong' } });
+		await request('/api/auth/login', { fetch, onUnauthorized }).catch(() => {});
+		expect(onUnauthorized).not.toHaveBeenCalled();
+	});
 });
 
 describe('query', () => {

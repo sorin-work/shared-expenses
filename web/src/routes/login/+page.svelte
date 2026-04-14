@@ -13,6 +13,7 @@
 	let fields = $state<Record<string, string>>({});
 
 	const next = $derived(safeNext(page.url.searchParams.get('next')));
+	const expired = $derived(page.url.searchParams.has('expired'));
 
 	$effect(() => {
 		if (session.token) goto(next, { replaceState: true });
@@ -39,6 +40,9 @@
 
 <div class="auth card">
 	<h1>Sign in</h1>
+	{#if expired}
+		<p class="notice">Your session expired. Please sign in again.</p>
+	{/if}
 	<form onsubmit={submit} novalidate>
 		<div class="field">
 			<label for="email">Email</label>

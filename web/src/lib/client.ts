@@ -1,5 +1,6 @@
 // Typed calls to the API, using the signed-in session.
 
+import { goto } from '$app/navigation';
 import { query, rawRequest, request, type ApiOptions } from './api';
 import { session } from './session.svelte';
 import type {
@@ -18,8 +19,15 @@ import type {
 	User
 } from './types';
 
-function call<T>(path: string, options: Omit<ApiOptions, 'token'> = {}) {
-	return request<T>(path, { ...options, token: session.token });
+function call<T>(path: string, options: Omit<ApiOptions, 'token' | 'onUnauthorized'> = {}) {
+	return request<T>(path, {
+		...options,
+		token: session.token,
+		onUnauthorized: () => {
+			session.signOut();
+			goto(`/login?expired=1&next=${encodeURIComponent(location.pathname)}`);
+		}
+	});
 }
 
 const g = (groupId: string) => `/api/groups/${groupId}`;

@@ -22,6 +22,8 @@ export interface ApiOptions {
 	body?: unknown;
 	token?: string | null;
 	fetch?: typeof fetch;
+	/** Called on a 401 for an authenticated request (expired session). */
+	onUnauthorized?: () => void;
 }
 
 async function errorFrom(response: Response): Promise<ApiError> {
@@ -61,6 +63,7 @@ export async function rawRequest(path: string, options: ApiOptions = {}): Promis
 	}
 
 	if (!response.ok) {
+		if (response.status === 401 && options.token) options.onUnauthorized?.();
 		throw await errorFrom(response);
 	}
 	return response;
