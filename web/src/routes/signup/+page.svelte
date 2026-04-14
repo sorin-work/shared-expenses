@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { auth } from '$lib/client';
 	import { errorMessage, fieldErrors } from '$lib/errors';
+	import { safeNext } from '$lib/navigation';
 	import { session } from '$lib/session.svelte';
 
 	let name = $state('');
@@ -12,7 +13,7 @@
 	let error = $state('');
 	let fields = $state<Record<string, string>>({});
 
-	const next = $derived(page.url.searchParams.get('next') ?? '/');
+	const next = $derived(safeNext(page.url.searchParams.get('next')));
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
