@@ -240,4 +240,10 @@
 	.payments {
 		margin-top: 1rem;
 	}
+
+	@media (max-width: 720px) {
+		.columns {
+			grid-template-columns: 1fr;
+		}
+	}
 </style>

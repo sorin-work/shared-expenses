@@ -164,4 +164,15 @@
 	.group:hover {
 		border-color: var(--accent);
 	}
+
+	@media (max-width: 560px) {
+		.create .grid {
+			grid-template-columns: 1fr;
+		}
+
+		.group {
+			flex-direction: column;
+			align-items: flex-start;
+		}
+	}
 </style>

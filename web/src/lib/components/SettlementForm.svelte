@@ -134,4 +134,10 @@
 	.alert {
 		margin-bottom: 1rem;
 	}
+
+	@media (max-width: 560px) {
+		.grid {
+			grid-template-columns: 1fr;
+		}
+	}
 </style>
