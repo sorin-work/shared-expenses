@@ -16,6 +16,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
 
   api:
     build: ./api
@@ -38,6 +39,7 @@ services:
       timeout: 3s
       retries: 20
       start_period: 5s
+    restart: unless-stopped
 
   web:
     build: ./web
@@ -51,6 +53,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
 volumes:
   db-data:
