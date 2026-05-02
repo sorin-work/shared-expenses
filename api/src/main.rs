@@ -10,6 +10,12 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() {
+    // `api healthcheck` is used by the Docker healthcheck, so the runtime
+    // image doesn't need curl or wget.
+    if std::env::args().nth(1).as_deref() == Some("healthcheck") {
+        std::process::exit(if healthcheck().await { 0 } else { 1 });
+    }
+
     if let Err(err) = run().await {
         tracing::error!(error = %err, "fatal");
         eprintln!("error: {err}");
@@ -27,6 +33,27 @@ fn init_tracing() {
     } else {
         builder.init();
     }
+}
+
+async fn healthcheck() -> bool {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let port = std::env::var("PORT").unwrap_or_else(|_| "4407".into());
+    let check = async {
+        let mut stream = tokio::net::TcpStream::connect(format!("127.0.0.1:{port}")).await?;
+        stream
+            .write_all(b"GET /healthz HTTP/1.0\r\nHost: localhost\r\n\r\n")
+            .await?;
+        let mut buf = vec![0u8; 64];
+        let n = stream.read(&mut buf).await?;
+        Ok::<_, std::io::Error>(
+            buf[..n].starts_with(b"HTTP/1.1 200") || buf[..n].starts_with(b"HTTP/1.0 200"),
+        )
+    };
+    matches!(
+        tokio::time::timeout(Duration::from_secs(3), check).await,
+        Ok(Ok(true))
+    )
 }
 
 /// Postgres may still be starting when the API comes up, so retry for a bit.
