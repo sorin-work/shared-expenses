@@ -165,6 +165,27 @@ async fn basic_fields_are_validated() {
 }
 
 #[tokio::test]
+async fn accepts_tomorrow_for_timezones_ahead_of_utc() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let (group, me) = app.group(&owner, "Auckland", "NZD").await;
+    let tomorrow = (chrono::Utc::now().date_naive() + chrono::Days::new(1)).to_string();
+    let response = app
+        .post(
+            &format!("/api/groups/{group}/expenses"),
+            &owner.token,
+            json!({
+                "description": "Breakfast", "amount_cents": 1_850, "paid_by": me,
+                "split_method": "equal", "spent_on": tomorrow, "splits": [{ "member_id": me }],
+            }),
+        )
+        .await;
+    assert_eq!(response.status, StatusCode::CREATED, "{}", response.text);
+}
+
+#[tokio::test]
 async fn edits_are_kept_in_the_history() {
     let Some(app) = common::app().await else {
         return;

@@ -4,7 +4,7 @@ use axum::Router;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::routing::get;
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Days, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::{PgConnection, PgExecutor};
@@ -152,8 +152,9 @@ pub async fn prepare(
 
     let notes = v.optional_text("notes", input.notes.as_deref(), 1000);
 
+    let latest = today.checked_add_days(Days::new(1)).unwrap_or(today);
     v.check(
-        input.spent_on <= today,
+        input.spent_on <= latest,
         "spent_on",
         "can't be in the future",
     );
