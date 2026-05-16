@@ -8,10 +8,12 @@
 	import { useGroup } from '$lib/group.svelte';
 	import type { Expense } from '$lib/types';
 
+	const PAGE_SIZE = 30;
 	const ctx = useGroup();
 	const group = $derived(ctx.group!);
 
 	let items = $state<Expense[]>([]);
+	let total = $state(0);
 	let loading = $state(true);
 	let error = $state('');
 	let myBalance = $state<number | null>(null);
@@ -36,9 +38,10 @@
 				category: categoryFilter,
 				member: memberFilter,
 				offset,
-				limit: 200
+				limit: PAGE_SIZE
 			});
 			items = offset === 0 ? page.items : [...items, ...page.items];
+			total = page.total;
 		} catch (err) {
 			error = errorMessage(err);
 		} finally {
@@ -123,6 +126,13 @@
 				/>
 			{/each}
 		{/each}
+		{#if items.length < total}
+			<div class="more">
+				<button onclick={() => fetchPage(items.length)} disabled={loading}>
+					{loading ? 'Loading…' : `Show more (${total - items.length} left)`}
+				</button>
+			</div>
+		{/if}
 	</div>
 {/if}
 
@@ -152,6 +162,11 @@
 		letter-spacing: 0.04em;
 		color: var(--muted);
 		margin: 1rem 0 0.25rem;
+	}
+
+	.more {
+		text-align: center;
+		padding-top: 1rem;
 	}
 
 	@media (max-width: 640px) {
