@@ -185,4 +185,36 @@ mod tests {
         );
         assert_eq!(nets(&balances), vec![600, -600]);
     }
+
+    #[test]
+    fn payer_who_is_not_a_participant() {
+        let balances = compute(&[A, B, C], &[expense(A, &[(B, 700), (C, 300)])], &[]);
+        assert_eq!(nets(&balances), vec![1000, -700, -300]);
+    }
+
+    #[test]
+    fn unknown_members_are_appended() {
+        let balances = compute(&[A], &[expense(A, &[(A, 100), (B, 100)])], &[]);
+        assert_eq!(balances.len(), 2);
+        assert_eq!(balances[1].member_id, B);
+        assert_eq!(nets(&balances), vec![100, -100]);
+    }
+
+    #[test]
+    fn balances_always_sum_to_zero() {
+        let balances = compute(
+            &[A, B, C],
+            &[
+                expense(A, &[(A, 334), (B, 333), (C, 333)]),
+                expense(B, &[(B, 2500), (C, 7500)]),
+                expense(C, &[(A, 1)]),
+            ],
+            &[SettlementEntry {
+                from: C,
+                to: B,
+                amount: 4000,
+            }],
+        );
+        assert_eq!(balances.iter().map(|b| b.net).sum::<i64>(), 0);
+    }
 }
