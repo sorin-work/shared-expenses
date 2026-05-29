@@ -7,6 +7,7 @@ describe('initials', () => {
 		expect(initials('Anna Maria de la Cruz')).toBe('AC');
 		expect(initials('jonas')).toBe('J');
 		expect(initials('  ')).toBe('?');
+		expect(initials('Øyvind Ås')).toBe('ØÅ');
 	});
 });
 
