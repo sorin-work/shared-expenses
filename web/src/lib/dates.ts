@@ -6,13 +6,15 @@ export function today(now: Date = new Date()): string {
 	return `${y}-${m}-${d}`;
 }
 
-/** "12 Mar 2026" for a YYYY-MM-DD date. */
+/** "12 Mar 2026" for a YYYY-MM-DD date, without timezone shifts. */
 export function formatDate(isoDate: string, locale?: string): string {
+	const [y, m, d] = isoDate.slice(0, 10).split('-').map(Number);
 	return new Intl.DateTimeFormat(locale, {
 		day: 'numeric',
 		month: 'short',
-		year: 'numeric'
-	}).format(new Date(isoDate));
+		year: 'numeric',
+		timeZone: 'UTC'
+	}).format(new Date(Date.UTC(y, m - 1, d)));
 }
 
 /** "just now", "5 min ago", "3 h ago", "yesterday", "4 days ago" or a date. */
