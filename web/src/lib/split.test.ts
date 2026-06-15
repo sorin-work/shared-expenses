@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { previewSplit, type SplitRow } from './split';
+import { evenPercentages, formatPercent, parsePercent, previewSplit, type SplitRow } from './split';
 
 const rows = (...values: number[]): SplitRow[] =>
 	values.map((value, i) => ({ memberId: `m${i + 1}`, value }));
@@ -50,5 +50,33 @@ describe('previewSplit', () => {
 		expect(previewSplit(0, 'equal', rows(0)).ok).toBe(false);
 		expect(previewSplit(100, 'equal', []).ok).toBe(false);
 		expect(previewSplit(100, 'shares', rows(1, 0)).ok).toBe(false);
+	});
+});
+
+describe('percent helpers', () => {
+	it('parses percentages into basis points', () => {
+		expect(parsePercent('50')).toBe(5000);
+		expect(parsePercent('33.33')).toBe(3333);
+		expect(parsePercent('12,5')).toBe(1250);
+		expect(parsePercent('100')).toBe(10000);
+	});
+
+	it('rejects invalid percentages', () => {
+		expect(parsePercent('')).toBeNull();
+		expect(parsePercent('101')).toBeNull();
+		expect(parsePercent('1.234')).toBeNull();
+		expect(parsePercent('abc')).toBeNull();
+	});
+
+	it('formats basis points', () => {
+		expect(formatPercent(5000)).toBe('50');
+		expect(formatPercent(3333)).toBe('33.33');
+		expect(formatPercent(1250)).toBe('12.50');
+	});
+
+	it('spreads 100% evenly', () => {
+		expect(evenPercentages(3)).toEqual([3334, 3333, 3333]);
+		expect(evenPercentages(4)).toEqual([2500, 2500, 2500, 2500]);
+		expect(evenPercentages(0)).toEqual([]);
 	});
 });
