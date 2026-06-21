@@ -58,6 +58,7 @@ describe('percent helpers', () => {
 		expect(parsePercent('50')).toBe(5000);
 		expect(parsePercent('33.33')).toBe(3333);
 		expect(parsePercent('12,5')).toBe(1250);
+		expect(parsePercent('7 %')).toBe(700);
 		expect(parsePercent('100')).toBe(10000);
 	});
 

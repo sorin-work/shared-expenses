@@ -83,7 +83,7 @@ export function previewSplit(total: number, method: SplitMethod, rows: SplitRow[
 
 /** Parses "33.33" into basis points (3333). Returns null if invalid. */
 export function parsePercent(input: string): number | null {
-	const match = /^(\d{1,3})(?:[.,](\d{0,2}))?$/.exec(input.trim());
+	const match = /^(\d{1,3})(?:[.,](\d{0,2}))?$/.exec(input.trim().replace(/%$/, '').trim());
 	if (!match) return null;
 	const [, whole, fraction = ''] = match;
 	const bp = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
