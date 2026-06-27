@@ -12,10 +12,17 @@
 
 	let creating = $state(false);
 	let name = $state('');
-	let currency = $state('EUR');
+	let currency = $state(guessCurrency());
 	let busy = $state(false);
 	let error = $state('');
 	let fields = $state<Record<string, string>>({});
+
+	function guessCurrency(): string {
+		const lang = typeof navigator === 'undefined' ? '' : navigator.language;
+		if (lang.endsWith('-GB')) return 'GBP';
+		if (lang.endsWith('-US')) return 'USD';
+		return 'EUR';
+	}
 
 	async function load() {
 		try {
