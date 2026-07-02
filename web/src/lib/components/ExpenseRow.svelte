@@ -69,10 +69,14 @@
 		flex: 1;
 		display: flex;
 		flex-direction: column;
+		min-width: 0;
 	}
 
 	.description {
 		font-weight: 500;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.effect {
