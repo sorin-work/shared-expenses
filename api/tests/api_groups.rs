@@ -52,6 +52,27 @@ async fn group_input_is_validated() {
 }
 
 #[tokio::test]
+async fn outsiders_cannot_see_a_group() {
+    let Some(app) = common::app().await else {
+        return;
+    };
+    let owner = app.signup("Owner").await;
+    let outsider = app.signup("Outsider").await;
+    let (group, _) = app.group(&owner, "Private", "USD").await;
+
+    for uri in [
+        format!("/api/groups/{group}"),
+        format!("/api/groups/{group}/expenses"),
+        format!("/api/groups/{group}/balances"),
+        format!("/api/groups/{group}/activity"),
+        format!("/api/groups/{group}/export.csv"),
+    ] {
+        let response = app.get(&uri, &outsider.token).await;
+        assert_eq!(response.status, StatusCode::NOT_FOUND, "{uri}");
+    }
+}
+
+#[tokio::test]
 async fn only_the_owner_can_change_settings() {
     let Some(app) = common::app().await else {
         return;
