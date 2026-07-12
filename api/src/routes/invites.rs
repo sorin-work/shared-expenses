@@ -232,6 +232,7 @@ async fn join(
         }
     };
     tx.commit().await?;
+    tracing::info!(group_id = %group.id, user_id = %user.id, "joined group");
 
     Ok(Json(Joined {
         group_id: group.id,

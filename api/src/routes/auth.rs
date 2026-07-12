@@ -123,6 +123,7 @@ async fn signup(
 
     let hash = password::hash_async(input.password).await?;
     let user = create_user(&state.pool, &email, &name, &hash).await?;
+    tracing::info!(user_id = %user.id, "user signed up");
 
     let token = state.tokens.issue(user.id)?;
     Ok((StatusCode::CREATED, Json(Session { token, user })))
