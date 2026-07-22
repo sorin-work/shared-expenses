@@ -20,6 +20,9 @@ whom and the fewest payments that settle everything.
   - by percentages (two decimals), or
   - by shares (e.g. 2 shares for a couple, 1 for a single).
 
+  All money is integer minor units (cents). Amounts that don't divide evenly
+  are distributed with the largest remainder method, ties going to members in
+  the order they joined, so the same expense always splits the same way.
 - **Categories**, search, filters by category and person, and a monthly
   list.
 - **Edit history**: every change stores a snapshot; the expense page shows
