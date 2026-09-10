@@ -154,7 +154,7 @@
 		<label for="new-member">Add someone without an account</label>
 		<div class="row">
 			<input id="new-member" bind:value={newName} placeholder="Name" maxlength="60" />
-			<button type="submit">Add</button>
+			<button type="submit" disabled={!newName.trim()}>Add</button>
 		</div>
 		{#if addError}<p class="field-error">{addError}</p>{/if}
 		<p class="muted small">They can claim their place later when they join with the invite link.</p>
