@@ -129,6 +129,15 @@ textarea {
 	background: var(--surface);
 }
 
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+
 input[aria-invalid='true'],
 select[aria-invalid='true'] {
 	border-color: var(--danger);
