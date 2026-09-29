@@ -22,6 +22,11 @@ describe('parseAmount', () => {
 		expect(parseAmount("1'234.50", 'CHF')).toBe(123450);
 	});
 
+	it('strips a leading currency symbol', () => {
+		expect(parseAmount('€9.99', 'EUR')).toBe(999);
+		expect(parseAmount('$ 20', 'USD')).toBe(2000);
+	});
+
 	it('rejects garbage and too many decimals', () => {
 		expect(parseAmount('', 'EUR')).toBeNull();
 		expect(parseAmount('abc', 'EUR')).toBeNull();
@@ -34,6 +39,10 @@ describe('parseAmount', () => {
 	it('handles zero-decimal currencies', () => {
 		expect(parseAmount('1500', 'JPY')).toBe(1500);
 		expect(minorUnits('jpy')).toBe(0);
+	});
+
+	it('rejects amounts beyond safe integers', () => {
+		expect(parseAmount('99999999999999999999', 'EUR')).toBeNull();
 	});
 });
 
