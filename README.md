@@ -133,6 +133,53 @@ npm test        # vitest
 CI runs all of the above, with a Postgres service for the database tests,
 and builds the Docker images.
 
+## Architecture
+
+```
+api/
+  migrations/        SQL migrations, embedded with sqlx::migrate!
+  src/domain/        pure logic: split, balance, simplify, currency, money
+  src/routes/        axum handlers, one module per resource
+  src/auth/          argon2 password hashing, JWT, the AuthUser extractor
+  src/seed.rs        demo data
+  tests/             handler tests (tower::ServiceExt::oneshot)
+web/
+  src/lib/           API client, money/split/date helpers, components
+  src/routes/        pages (login, groups, expenses, balances, activity...)
+```
+
+- The API is a JSON API under `/api`. Errors always look like
+  `{"error": {"code", "message", "fields"?}}`, with per-field messages for
+  validation errors.
+- Every group-scoped endpoint checks membership first and answers 404 for
+  groups the user isn't in.
+- Balances are computed from the live expenses and settlements on request;
+  they are never stored, so they can't drift.
+- Expenses and settlements are soft deleted. Each expense change writes a
+  JSON snapshot to `expense_revisions` and an entry to `activity`.
+- The web app is a single page app built with the static adapter; nginx
+  serves it and proxies `/api`, so the browser only talks to one origin.
+
+### API overview
+
+| Method               | Path                                              |                                   |
+| -------------------- | ------------------------------------------------- | --------------------------------- |
+| POST                 | `/api/auth/signup`, `/api/auth/login`             | returns `{token, user}`           |
+| GET, PATCH           | `/api/auth/me`                                    | profile                           |
+| POST                 | `/api/auth/password`                              | change password                   |
+| GET, POST            | `/api/groups`                                     | my groups with my balance / create |
+| GET, PATCH, DELETE   | `/api/groups/{id}`                                | group with members                |
+| POST                 | `/api/groups/{id}/invite`                         | new invite code                   |
+| POST, PATCH, DELETE  | `/api/groups/{id}/members[/{member}]`             | placeholders, rename, remove/leave |
+| GET, POST            | `/api/groups/{id}/expenses`                       | list (`q`, `category`, `member`, `limit`, `offset`) / create |
+| GET, PUT, DELETE     | `/api/groups/{id}/expenses/{expense}`             |                                   |
+| GET                  | `/api/groups/{id}/expenses/{expense}/history`     | revisions                         |
+| GET, POST, DELETE    | `/api/groups/{id}/settlements[/{settlement}]`     |                                   |
+| GET                  | `/api/groups/{id}/balances`                       | balances and suggestions          |
+| GET                  | `/api/groups/{id}/activity`                       | feed (`before`, `limit`)          |
+| GET                  | `/api/groups/{id}/export.csv`                     | CSV export                        |
+| GET, POST            | `/api/invites/{code}`, `/api/invites/{code}/join` | preview / join (optionally claim a placeholder) |
+
 ## License
 
 MIT
