@@ -106,6 +106,18 @@ npm run dev
 
 Set `API_URL` if the API is not on `http://localhost:4407`.
 
+### Configuration
+
+| Variable          | Default                                     | Purpose                                  |
+| ----------------- | ------------------------------------------- | ---------------------------------------- |
+| `DATABASE_URL`    | (required)                                  | Postgres connection string               |
+| `JWT_SECRET`      | (required, 32+ characters)                  | Signs login tokens                       |
+| `PORT`            | `4407`                                      | API port                                 |
+| `TOKEN_TTL_HOURS` | `168`                                       | How long a login lasts                   |
+| `SEED_DEMO`       | `false` (`true` in Docker Compose)          | Create the demo account and data         |
+| `RUST_LOG`        | `shared_expenses_api=info,tower_http=info`  | Log filter                               |
+| `LOG_FORMAT`      | `text`                                      | `json` for structured logs               |
+
 ## Tests and linting
 
 API:
