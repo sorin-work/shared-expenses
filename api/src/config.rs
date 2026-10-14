@@ -30,6 +30,13 @@ impl Config {
         let database_url = get("DATABASE_URL").ok_or(ConfigError::Missing("DATABASE_URL"))?;
 
         let jwt_secret = get("JWT_SECRET").ok_or(ConfigError::Missing("JWT_SECRET"))?;
+        if jwt_secret.len() < 32 {
+            return Err(ConfigError::Invalid {
+                name: "JWT_SECRET",
+                reason: "use at least 32 characters".into(),
+            });
+        }
+
         let port = match get("PORT") {
             Some(v) => v.parse().map_err(|_| ConfigError::Invalid {
                 name: "PORT",
@@ -111,6 +118,18 @@ mod tests {
             load(&[("DATABASE_URL", "postgres://x"), ("JWT_SECRET", "  ")]).unwrap_err(),
             ConfigError::Missing("JWT_SECRET")
         );
+    }
+
+    #[test]
+    fn rejects_short_secrets() {
+        let err = load(&[("DATABASE_URL", "postgres://x"), ("JWT_SECRET", "short")]).unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::Invalid {
+                name: "JWT_SECRET",
+                ..
+            }
+        ));
     }
 
     #[test]
