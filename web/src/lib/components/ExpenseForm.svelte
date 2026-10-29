@@ -210,7 +210,7 @@
 			<label for="paid-by">Paid by</label>
 			<select id="paid-by" bind:value={paidBy} aria-invalid={!!fields.paid_by}>
 				{#each people as m (m.id)}
-					<option value={m.id}>{m.display_name}</option>
+					<option value={m.id}>{m.id === group.my_member_id ? 'You' : m.display_name}</option>
 				{/each}
 			</select>
 			{#if fields.paid_by}<p class="field-error">{fields.paid_by}</p>{/if}
