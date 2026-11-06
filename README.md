@@ -131,7 +131,14 @@ cargo test
 
 The split, balance and settle up logic, CSV writer, config and validation
 have unit tests. `tests/http.rs` exercises routing, auth and validation
-through the axum router without a database.
+through the axum router without a database. The tests that need Postgres
+(`tests/api_*.rs`) are skipped unless `TEST_DATABASE_URL` is set:
+
+```bash
+docker compose up -d db
+docker compose exec db createdb -U shared_expenses shared_expenses_test
+TEST_DATABASE_URL=postgres://shared_expenses:shared_expenses@localhost:5447/shared_expenses_test cargo test
+```
 
 Web:
 
