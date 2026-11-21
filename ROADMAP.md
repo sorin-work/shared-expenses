@@ -719,3 +719,139 @@ client-chosen `X-Forwarded-For` if item 2 trusts it.
 - Depends on item 2 for the trusted proxy logic.
 - Tests: router tests for each signup mode; the compose change is checked by
   hand.
+
+## Maybe
+
+### 30. Large groups
+
+Balances are never stored: `compute_for_group` loads every share row of every
+expense of the group on each request to the balances page, and the groups list
+runs four correlated sums per group for "my balance". That is the right choice
+for correctness and fine for a flat with a few hundred expenses a year. A
+long-lived group with ten thousand expenses, or a user with many groups, would
+feel it.
+
+- Measure first: a database test fixture with a group of 20,000 expenses and
+  `EXPLAIN (ANALYZE, FORMAT JSON)` on the balance queries, asserting on rows
+  read, not time.
+- Sum in SQL: per member, `sum(paid)` and `sum(share)` with `GROUP BY` instead
+  of loading rows into Rust; `balance::compute` keeps the logic for tests and
+  the export.
+- One query for the groups list balances with `GROUP BY` instead of four
+  subqueries per group.
+- `simplify` is exact up to 16 people with open balances and greedy beyond
+  (`EXACT_LIMIT`). That is fine; a test that the greedy result is never worse
+  than one transfer per debtor documents it.
+- Undecided: storing running balances per member. Faster, but a second source
+  of truth that can drift, which the README says is avoided on purpose. I would
+  only do the SQL sums.
+- Tests: the fixture and query plan checks above.
+
+### 31. Adding expenses offline
+
+Expenses happen where the signal is bad: in the mountains, abroad without data.
+The web app needs the API for everything.
+
+- A service worker that caches the app shell and the groups the user opened,
+  and a queue in IndexedDB for new expenses made offline, sent when back online
+  with the idempotency keys from item 5 so a retry never creates a duplicate.
+- Offline expenses show as "not sent yet" in the list.
+- Tricky: conflicts. An expense queued offline may refer to a member who left
+  meanwhile; the API's 422 must come back to the user as a fixable entry, not a
+  silent drop.
+- Tricky: the static adapter and nginx's `Cache-Control: no-cache` on `/`
+  interact with the service worker's cache; versioning must be right, or users
+  run an old app against a new API.
+- Depends on item 5.
+- Tests: Vitest tests for the queue module; the service worker by hand.
+
+### 32. Translations and local formats
+
+The interface is English, while amounts already accept `12,50` and `1 234.56`
+(`parseAmount` in `web/src/lib/money.ts`). Travel groups are often mixed in
+language.
+
+- A small i18n setup in the web app (message catalogues per language, plural
+  rules through `Intl.PluralRules`), the language from the browser with a
+  choice in settings.
+- Money and dates through `Intl.NumberFormat` and `Intl.DateTimeFormat` with the
+  user's locale, keeping the currency's minor units from the API.
+- API error messages are English text in `AppError`; the web app should map
+  error codes and field codes to its own messages rather than translating the
+  API.
+- Tricky: activity texts are built in `web/src/lib/activity.ts` from kinds and
+  payloads, which suits translation; history diffs in `history.ts` too.
+- Undecided: whether a second language will be maintained. I would only start
+  with someone who uses it.
+- Tests: Vitest tests for formatting in two locales and for message keys that
+  exist in every catalogue.
+
+### 33. Two-step sign in
+
+The account holds a record of who paid what, sometimes with payment details
+(item 22). A password is the only protection.
+
+- TOTP with the `totp-rs` crate, set up from the settings page with a QR code,
+  plus single-use recovery codes stored hashed. Login returns "code needed" and
+  a short-lived challenge token; a second call with the code returns the
+  session token.
+- Depends on item 1: a second factor is pointless while tokens cannot be
+  revoked.
+- Tricky: password reset (item 7) must not skip the second step.
+- Tests: database tests for enabling, signing in with a code, a wrong code, and
+  a recovery code used once.
+
+### 34. Metrics for monitoring
+
+There is `/healthz` and structured logs with `LOG_FORMAT=json`. Someone running
+this for a few groups might want request counts, error rates and latency in
+Prometheus or similar, without reading logs.
+
+- `GET /metrics` in Prometheus text format with `metrics` and
+  `metrics-exporter-prometheus`: request count and latency by route template
+  and status, database pool usage, and counts of users, groups and expenses.
+- Not proxied by nginx, so it stays on the internal network unless the operator
+  publishes it.
+- Undecided: whether anyone would scrape it. It is small, which is why it is
+  here at all.
+- Tests: a router test that the endpoint answers and contains the route label
+  of a request made just before.
+
+### 35. Personal API tokens and a described API
+
+The API is JSON and documented as a table in the README. Scripts that add an
+expense from a phone shortcut, or a bank import (item 36), need a token that is
+not a week-long login copied out of `localStorage`, and a description of the
+request bodies.
+
+- Personal tokens: named, hashed at rest, shown once, revocable, optionally read
+  only, accepted by `AuthUser` next to session tokens (item 1).
+- An OpenAPI document generated from the handlers with `utoipa`, served at
+  `/api/openapi.json`, and the README's table linked to it.
+- Depends on item 1 for the session table the tokens sit next to.
+- Tricky: `utoipa` annotations on every handler and input type are a lot of
+  churn; doing it route module by route module keeps pull requests small.
+- Tests: database tests for a token's access and revocation; a test that the
+  OpenAPI document lists every route in `router()`.
+
+### 36. Importing a bank statement
+
+Most shared expenses already exist as lines on someone's bank statement. Typing
+them again is the main chore of using an app like this.
+
+- Upload a CSV statement (or CAMT.053 XML, which most European banks offer),
+  map its columns once per bank, pick the lines that were shared, and turn each
+  into an expense paid by the uploader with the group's default split (item 18
+  helps here).
+- Remember imported lines by a hash of date, amount and text, so importing an
+  overlapping statement does not create duplicates.
+- Tricky: every bank's CSV is different (separators, decimal commas, date
+  formats, signs). The column mapping step is most of the work, and the parsing
+  should live in a `domain/` module with many fixture files.
+- Tricky: statements contain other private payments. Nothing is stored except
+  the lines the user picks.
+- Depends on item 26 for the import preview flow it shares.
+- Undecided: whether this is worth it over typing. For a household with many
+  shared bills it is; for a weekend trip it is not. Hence Maybe.
+- Tests: unit tests for the readers and the duplicate hash; database tests for
+  importing picked lines.
