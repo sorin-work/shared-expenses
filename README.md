@@ -199,6 +199,10 @@ web/
 | GET                  | `/api/groups/{id}/export.csv`                     | CSV export                        |
 | GET, POST            | `/api/invites/{code}`, `/api/invites/{code}/join` | preview / join (optionally claim a placeholder) |
 
+## Roadmap
+
+Ideas for what could come next are in [ROADMAP.md](ROADMAP.md).
+
 ## License
 
 MIT
